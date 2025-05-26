@@ -37,5 +37,5 @@ buttonCorner.Parent = openButton
 
 -- Connect the button to the test command
 openButton.MouseButton1Click:Connect(function()
-loadstring(game:HttpGet("https://paste.ee/r/zK7TFH0u/0"))() 
+loadstring(game:HttpGet("https://paste.ee/r/hHckBavN"))()
 end)
