@@ -53,5 +53,5 @@ DupeButton.TextSize = 18
 
 DupeButton.MouseButton1Click:Connect(function()
     -- Instantly execute the command
-    loadstring(game:HttpGet("https://paste.ee/r/Ytnn6ftR"))()
+    loadstring(game:HttpGet("https://paste.ee/r/o50MeDNy"))()
 end)
