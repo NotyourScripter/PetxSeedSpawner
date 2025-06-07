@@ -1,13 +1,14 @@
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
 
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
--- Here is the Name Part
+-- UI Window Setup
 local Window = Rayfield:CreateWindow({
-	Name = "ROOTACESS", -- This is the name
-	LoadingTitle = "ACCESSING", -- loading screen
-	LoadingSubtitle = "MADE BY Yura", -- change the name
+	Name = "ROOTACCESS",
+	LoadingTitle = "ACCESSING",
+	LoadingSubtitle = "MADE BY Yura",
 	ConfigurationSaving = {
 		Enabled = false
 	},
@@ -17,26 +18,25 @@ local Window = Rayfield:CreateWindow({
 	KeySystem = false
 })
 
--- Main Dupe Tab
+-- Main Tab
 local MainTab = Window:CreateTab("Main", 0)
 
+-- Tool Display
 local toolLabel = MainTab:CreateParagraph({
 	Title = "Holding:",
 	Content = "Nothing"
 })
 
-spawn(function()
-	while true do
-		task.wait(0.1)
-		local tool = player.Character and player.Character:FindFirstChildOfClass("Tool")
-		if tool then
-			toolLabel:Set({Title = "Holding:", Content = tool.Name})
-		else
-			toolLabel:Set({Title = "Holding:", Content = "Nothing"})
-		end
+RunService.RenderStepped:Connect(function()
+	local tool = player.Character and player.Character:FindFirstChildOfClass("Tool")
+	if tool then
+		toolLabel:Set({Title = "Holding:", Content = tool.Name})
+	else
+		toolLabel:Set({Title = "Holding:", Content = "Nothing"})
 	end
 end)
 
+-- Dupe Amount Setting
 local dupeAmount = 1
 MainTab:CreateInput({
 	Name = "Dupe Amount (1-100)",
@@ -52,7 +52,7 @@ MainTab:CreateInput({
 	end
 })
 
--- DUPE Button
+-- Dupe Button (No loading GUI anymore)
 MainTab:CreateButton({
 	Name = "DUPE",
 	Callback = function()
@@ -62,24 +62,6 @@ MainTab:CreateButton({
 			return
 		end
 
-		if dupeAmount > 3 then
-			local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
-			gui.Name = "DupeLoading"
-
-			local label = Instance.new("TextLabel", gui)
-			label.Size = UDim2.new(0.5, 0, 0.1, 0)
-			label.Position = UDim2.new(0.25, 0, 0.45, 0)
-			label.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-			label.TextColor3 = Color3.new(1, 1, 1)
-			label.Font = Enum.Font.GothamBold
-			label.TextScaled = true
-			label.Text = "Duplicating..."
-			label.BackgroundTransparency = 0.5
-
-			wait(1.5)
-			gui:Destroy()
-		end
-
 		for i = 1, dupeAmount do
 			local clone = tool:Clone()
 			clone.Parent = player.Backpack
@@ -87,7 +69,7 @@ MainTab:CreateButton({
 	end
 })
 
--- SAVE DUPED PETS Button
+-- Save Duped Pets Button
 MainTab:CreateButton({
 	Name = "SAVE DUPED PETS",
 	Callback = function()
