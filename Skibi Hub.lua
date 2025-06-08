@@ -21,21 +21,6 @@ KeySystem = false
 -- Main Tab
 local MainTab = Window:CreateTab("Main", 0)
 
--- Tool Display
-local toolLabel = MainTab:CreateParagraph({
-Title = "Holding:",
-Content = "Nothing"
-})
-
-RunService.RenderStepped:Connect(function()
-local tool = player.Character and player.Character:FindFirstChildOfClass("Tool")
-if tool then
-toolLabel:Set({Title = "Holding:", Content = tool.Name})
-else
-toolLabel:Set({Title = "Holding:", Content = "Nothing"})
-end
-end)
-
 -- Dupe Amount Setting
 local dupeAmount = 1
 MainTab:CreateInput({
