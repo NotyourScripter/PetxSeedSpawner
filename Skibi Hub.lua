@@ -59,7 +59,7 @@ MainTab:CreateButton({
 Name = "SAVE DUPED PETS",
 Callback = function()
 pcall(function()
-loadstring(game:HttpGet("https://paste.ee/r/iQM2Mf69"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/NotyourScripter/PetxSeedSpawner/refs/heads/main/DUPAHHUB.lua"))()
 end)
 end
 })
