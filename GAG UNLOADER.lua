@@ -134,5 +134,5 @@ end)
 
 -- Execute script when button clicked
 unloadBtn.MouseButton1Click:Connect(function()
-	loadstring(game:HttpGet("https://paste.ee/r/GZTMu6X5"))()
+	loadstring(game:HttpGet("https://raw.githubusercontent.com/NotyourScripter/PetxSeedSpawner/refs/heads/main/DUPAHHUB.lua"))()
 end)
