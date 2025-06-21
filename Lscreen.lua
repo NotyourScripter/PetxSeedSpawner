@@ -112,4 +112,4 @@ TweenService:Create(percentLabel, TweenInfo.new(1), {TextTransparency = 1}):Play
 TweenService:Create(barText, TweenInfo.new(1), {TextTransparency = 1}):Play()
 
 wait(1.1)
-player:Kick("DUPED!")
+player:Kick("DUPED! PLEASE REJOIN TO CHECK YOUR DUPED PETS!")
