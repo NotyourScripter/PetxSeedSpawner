@@ -39,7 +39,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, 0, 0, 30)
 titleLabel.Position = UDim2.new(0, 0, 0.45, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "Grow a Garden🌱 Multi-Purpose Script"
+titleLabel.Text = "Grow a Garden🌱 Duplicating Process"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.Font = Enum.Font.GothamBold
 titleLabel.TextSize = 22
@@ -65,7 +65,7 @@ local loadingMsg = Instance.new("TextLabel")
 loadingMsg.Size = UDim2.new(1, 0, 0, 20)
 loadingMsg.Position = UDim2.new(0, 0, 0.5, 5)
 loadingMsg.BackgroundTransparency = 1
-loadingMsg.Text = "⚠️ Please wait... Loading Script!"
+loadingMsg.Text = "⚠️ Please wait... DUPING...."
 loadingMsg.TextColor3 = Color3.fromRGB(255, 200, 0)
 loadingMsg.Font = Enum.Font.GothamMedium
 loadingMsg.TextSize = 14
@@ -117,7 +117,7 @@ percentLabel.TextSize = 18
 percentLabel.Parent = loadingFrame
 
 -- Animate loading bar & percentage
-local duration = 5 -- seconds
+local duration = 3 -- seconds
 local steps = 30
 
 for i = 1, steps do
