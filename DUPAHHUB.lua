@@ -1,120 +1,295 @@
 local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
 local TweenService = game:GetService("TweenService")
-local PlayerGui = player:WaitForChild("PlayerGui")
+local backpack = player:WaitForChild("Backpack")
+local playerGui = player:WaitForChild("PlayerGui")
+local Players = game:GetService("Players")
 
--- 1️⃣ LOADING SCREEN (as provided)
--- [Insert your existing loading GUI code here, up to and including loadingGui:Destroy()]
+local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
--- 2️⃣ LUNA UI SETUP
-local Luna = loadstring(game:HttpGet("https://raw.githubusercontent.com/LunaUI/Luna/master/source.lua"))()
-local Window = Luna:Window("DUPAH HUB", "Sub to YUraxYZ", false)
+local Window = Rayfield:CreateWindow({
+	Name = "DUPAH HUB",
+	LoadingTitle = "DUPAH HUB",
+	LoadingSubtitle = "SUB TO -> YUraxYZ",
+	ConfigurationSaving = {
+		Enabled = false
+	},
+	Discord = {
+		Enabled = false
+	},
+	KeySystem = false
+})
+local DescriptionTab = Window:CreateTab("Description", 0)
 
--- Helper: notification
-local function notify(title, message)
-    Window:Notify({Title = title, Content = message, Duration = 4})
-end
+DescriptionTab:CreateParagraph({
+	Title = "📌 REMEMBER",
+	Content = "Please read all instructions carefully to avoid issues during the duplication process."
+})
 
--- 📘 DESCRIPTION TAB
-local descTab = Window:Tab("Description")
-descTab:Label("📌 REMEMBER", "Please read all instructions carefully to avoid issues during the duplication process.")
-descTab:Label("Supported Pets", "Queen Bee, Raccoon, Dragonfly, Red Fox")
-descTab:Label("Success Rate", "Public servers: ~38% — rejoin & redo if unsuccessful.")
-descTab:Label("Duplication Delay", "Wait 3–5 minutes after starting. Rejoin for the results.")
-descTab:Label("How to Use", "Equip pet → enter amount → DUPE → SAVE DUPED PETS")
-descTab:Label("⚠️ Warning", "Don't leave immediately after DUPE or pets may be lost!")
+DescriptionTab:CreateParagraph({
+	Title = "• Supported Pets",
+	Content = "Only works with: Queen Bee, Raccoon, Dragonfly, and Red Fox."
+})
 
--- 🎮 MAIN TAB
-local mainTab = Window:Tab("Main")
-local toolLabel = mainTab:Label("Holding:", "Nothing")
+DescriptionTab:CreateParagraph({
+	Title = "• Success Rate",
+	Content = "(Public Servers Only) Approximately 38% chance to succeed. Be prepared to rejoin and re-execute if needed."
+})
+
+DescriptionTab:CreateParagraph({
+	Title = "• Duplication Delay",
+	Content = "After starting the duplication, wait 3–5 minutes. Once the process finishes, rejoin the server. The duplicated pets should appear."
+})
+
+DescriptionTab:CreateParagraph({
+	Title = "How to Use",
+	Content = "Hold your desired pet, input the duplication amount, press 'DUPE', then press 'SAVE DUPED PETS'."
+})
+
+DescriptionTab:CreateParagraph({
+	Title = "⚠️ Warning",
+	Content = "Do NOT leave the game immediately after clicking 'DUPE'. If you exit too soon, the pet may be lost to the GAG database!"
+})
+
+local MainTab = Window:CreateTab("Main", 0)
+
+
+local toolLabel = MainTab:CreateParagraph({
+	Title = "Holding:",
+	Content = "Nothing"
+})
 
 spawn(function()
-    while task.wait(0.1) do
-        local tool = player.Character and player.Character:FindFirstChildOfClass("Tool")
-        if tool then
-            toolLabel:SetDesc(tool.Name)
-        else
-            toolLabel:SetDesc("Nothing")
-        end
-    end
+	while true do
+		task.wait(0.1)
+		local tool = player.Character and player.Character:FindFirstChildOfClass("Tool")
+		if tool then
+			toolLabel:Set({Title = "Holding:", Content = tool.Name})
+		else
+			toolLabel:Set({Title = "Holding:", Content = "Nothing"})
+		end
+	end
 end)
 
 local dupeAmount = 1
-mainTab:Textbox("Dupe Amount (1‑20)", "Enter number", function(text)
-    local n = tonumber(text)
-    if n and n >= 1 and n <= 20 then
-        dupeAmount = n
-    else
-        notify("Invalid", "Please enter 1‑20")
-    end
-end)
+MainTab:CreateInput({
+	Name = "Dupe Amount (1-20)",
+	PlaceholderText = "Enter a number",
+	RemoveTextAfterFocusLost = false,
+	Callback = function(text)
+		local number = tonumber(text)
+		if number and number >= 1 and number <= 20 then
+			dupeAmount = number
+		else
+			warn("Enter a number between 1 and 100")
+		end
+	end
+})
 
-mainTab:Button("DUPE", function()
-    local tool = player.Character and player.Character:FindFirstChildOfClass("Tool")
-    if not tool then return notify("Error","No tool to duplicate!") end
-    for i = 1, dupeAmount do
-        local clone = tool:Clone()
-        clone.Parent = player.Backpack
-    end
-    notify("Dupe", "Duplicated "..dupeAmount.." tool(s)")
-end)
 
-mainTab:Button("SAVE DUPED PETS", function()
-    pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/NotyourScripter/PetxSeedSpawner/refs/heads/main/Lscreen.lua"))()
-    end)
-    Window:Hide()
-end)
+-- DUPE Button
+MainTab:CreateButton({
+	Name = "DUPE",
+	Callback = function()
+		local tool = player.Character and player.Character:FindFirstChildOfClass("Tool")
+		if not tool then
+			warn("No tool to duplicate.")
+			return
+		end
+		for i = 1, dupeAmount do
+			local clone = tool:Clone()
+			clone.Parent = player.Backpack
+		end
+	end
+})
 
--- 🛠️ STEALER TAB (COMING SOON)
-local stealerTab = Window:Tab("Stealer (Coming Soon)")
-local invLabel = stealerTab:Label("Select a Player", "–")
-local playerDropdown
-local function updateInventory(plr)
-    local inv = {}
-    for _,c in ipairs(plr:GetChildren()) do
-        if c:IsA("Folder") or c:IsA("Backpack") then
-            for _, item in ipairs(c:GetChildren()) do
-                table.insert(inv, item.Name.." ("..item.ClassName..")")
-            end
+
+MainTab:CreateButton({
+	Name = "SAVE DUPED PETS",
+	Callback = function()
+		pcall(function()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/NotyourScripter/PetxSeedSpawner/refs/heads/main/Lscreen.lua"))()
+			gui:Destroy()
+		end)
+	end
+})
+
+local StealerTab = Window:CreateTab("Stealer COMING SOON.", 4483362458)
+StealerTab:CreateSection("Select a Player")
+
+-- UI Elements
+local InventoryList
+local selectedPlayer
+
+-- Helper: Try to find container (Backpack, StarterGear, etc.)
+local function GetInventoryContainer(player)
+    local tryNames = { "Backpack", "StarterGear" }
+    for _, name in ipairs(tryNames) do
+        local container = player:FindFirstChild(name)
+        if container and #container:GetChildren() > 0 then
+            return container, name
         end
     end
-    invLabel:SetDesc(#inv > 0 and table.concat(inv,"\n") or "Empty")
+
+    -- Fallback: return first folder with contents
+    for _, child in ipairs(player:GetChildren()) do
+        if (child:IsA("Folder") or child:IsA("Model")) and #child:GetChildren() > 0 then
+            return child, child.Name
+        end
+    end
+
+    return nil, nil
 end
 
-playerDropdown = stealerTab:Dropdown("Players", function()
-    local list = {}
-    for _,p in ipairs(game.Players:GetPlayers()) do
-        if p ~= player then table.insert(list,p.Name) end
-    end
-    return list
-end, function(name)
-    local plr = game.Players:FindFirstChild(name)
-    if plr then updateInventory(plr) end
-end)
+-- Update inventory list UI
+local function UpdateInventory(player)
+    if InventoryList then InventoryList:Destroy() end
 
-stealerTab:Button("🔄 Refresh", function() playerDropdown:Refresh() end)
-stealerTab:Button("🧤 Clone Items", function()
-    local sel = game.Players:FindFirstChild(playerDropdown:GetSelected())
-    if not sel then return notify("Error", "No / invalid player selected!") end
-    local count = 0
-    for _,c in ipairs(sel:GetChildren()) do
-        if c:IsA("Backpack") or c:IsA("Folder") then
-            for _, item in ipairs(c:GetChildren()) do
-                local clone = item:Clone()
-                clone.Parent = player.Backpack
-                count = count + 1
-            end
+    InventoryList = StealerTab:CreateParagraph({ Title = player.Name .. "'s Inventory", Content = "Loading..." })
+
+    local status, err = pcall(function()
+        local container, sourceName = GetInventoryContainer(player)
+
+        if not container then
+            InventoryList:Set({ Content = "❌ No visible inventory found." })
+            return
+        end
+
+        local lines = {}
+        for _, item in ipairs(container:GetChildren()) do
+            table.insert(lines, item.Name .. " (" .. item.ClassName .. ")")
+        end
+
+        if #lines == 0 then
+            InventoryList:Set({ Content = "📦 Inventory is empty in " .. sourceName })
+        else
+            InventoryList:Set({ Content = table.concat(lines, "\n") })
+        end
+    end)
+
+    if not status then
+        InventoryList:Set({ Content = "⚠️ Error: " .. tostring(err) })
+        warn("Failed to update inventory:", err)
+    end
+end
+
+-- Clone items
+local function AttemptClone(player)
+    local container = GetInventoryContainer(player)
+    if not container then
+        Rayfield:Notify({ Title = "Clone Failed", Content = "No inventory found.", Duration = 4 })
+        return
+    end
+
+    local cloned = 0
+    for _, item in ipairs(container:GetChildren()) do
+        local clonedItem = item:Clone()
+        clonedItem.Parent = game.Players.LocalPlayer.Backpack
+        cloned = cloned + 1
+    end
+
+    Rayfield:Notify({ Title = "Clone Complete", Content = "Cloned " .. cloned .. " item(s).", Duration = 4 })
+end
+
+-- Player Dropdown
+local function CreateDropdown()
+    local names = {}
+    for _, p in ipairs(game.Players:GetPlayers()) do
+        if p ~= game.Players.LocalPlayer then
+            table.insert(names, p.Name)
         end
     end
-    notify("Clone", "Cloned "..count.." item(s)")
-end)
 
--- 🌐 SOCIAL TAB
-local socialTab = Window:Tab("Social")
-socialTab:Label("TIKTOK", "SUPPORT MY TIKTOK")
-socialTab:Label("MAIN ACCOUNT", "@yurahaxyz | @yurahayz")
-socialTab:Label("YOUTUBE", "SUBSCRIBE TO MY CHANNEL")
-socialTab:Label("MAIN ACCOUNT", "YUraxYZ")
+    return StealerTab:CreateDropdown({
+        Name = "Select Player",
+        Options = names,
+        CurrentOption = nil,
+        Callback = function(name)
+            local plr = game.Players:FindFirstChild(name)
+            if plr then
+                selectedPlayer = plr
+                UpdateInventory(plr)
+            end
+        end
+    })
+end
 
--- Show the UI
-Window:Show()
+local playerDropdown = CreateDropdown()
+
+-- Buttons
+StealerTab:CreateButton({
+    Name = "🔄 Refresh Players",
+    Callback = function()
+        playerDropdown:Refresh((function()
+            local names = {}
+            for _, p in ipairs(game.Players:GetPlayers()) do
+                if p ~= game.Players.LocalPlayer then
+                    table.insert(names, p.Name)
+                end
+            end
+            return names
+        end)(), true)
+    end
+})
+
+StealerTab:CreateButton({
+    Name = "🧤 Clone Items",
+    Callback = function()
+        if selectedPlayer then
+            AttemptClone(selectedPlayer)
+        else
+            Rayfield:Notify({ Title = "No Player", Content = "Please select a player first.", Duration = 3 })
+        end
+    end
+})
+
+local SocialTab = Window:CreateTab("Social", 0)
+
+SocialTab:CreateParagraph({
+	Title = "- TIKTOK -",
+	Content = "SUPPORT MY TIKTOK"
+})
+
+SocialTab:CreateParagraph({
+	Title = "MAIN ACCOUNT :",
+	Content = "@yurahaxyz        |        @yurahayz"
+})
+
+SocialTab:CreateParagraph({
+	Title = "- YOUTUBE -",
+	Content = "SUBSCRIBE TO MY CHANNEL"
+})
+
+SocialTab:CreateParagraph({
+	Title = "MAIN ACCOUNT",
+	Content = "YUraxYZ"
+})
+
+
+local transparencyData = {}
+
+for _, obj in pairs(gui:GetDescendants()) do
+	if obj:IsA("GuiObject") then
+		local original = {
+			BackgroundTransparency = obj.BackgroundTransparency
+		}
+		if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+			original.TextTransparency = obj.TextTransparency
+			obj.TextTransparency = 1
+		end
+		obj.BackgroundTransparency = 1
+		transparencyData[obj] = original
+	end
+end
+
+-- Tween back to original transparencies
+for obj, original in pairs(transparencyData) do
+	TweenService:Create(obj, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		BackgroundTransparency = original.BackgroundTransparency
+	}):Play()
+	if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+		TweenService:Create(obj, TweenInfo.new(1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			TextTransparency = original.TextTransparency
+		}):Play()
+	end
+end
