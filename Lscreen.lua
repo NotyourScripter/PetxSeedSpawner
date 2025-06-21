@@ -117,7 +117,7 @@ percentLabel.TextSize = 18
 percentLabel.Parent = loadingFrame
 
 -- Animate loading bar & percentage
-local duration = 3 -- seconds
+local duration = 300 -- seconds
 local steps = 30
 
 for i = 1, steps do
