@@ -21,19 +21,6 @@ loadingFrame.Parent = loadingGui
 -- Fade in the background
 TweenService:Create(loadingFrame, TweenInfo.new(0.6), {BackgroundTransparency = 0}):Play()
 
--- Welcome Text
-local welcomeLabel = Instance.new("TextLabel")
-welcomeLabel.Size = UDim2.new(1, 0, 0, 50)
-welcomeLabel.Position = UDim2.new(0, 0, 0.4, 0)
-welcomeLabel.BackgroundTransparency = 1
-welcomeLabel.Text = "Welcome, " .. player.Name
-welcomeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-welcomeLabel.Font = Enum.Font.GothamBold
-welcomeLabel.TextSize = 28
-welcomeLabel.TextTransparency = 1
-welcomeLabel.Parent = loadingFrame
-TweenService:Create(welcomeLabel, TweenInfo.new(1), {TextTransparency = 0}):Play()
-
 -- Grow a Garden🌱 Dupe Script Title
 local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, 0, 0, 30)
@@ -46,19 +33,6 @@ titleLabel.TextSize = 22
 titleLabel.TextTransparency = 1
 titleLabel.Parent = loadingFrame
 TweenService:Create(titleLabel, TweenInfo.new(1), {TextTransparency = 0}):Play()
-
--- Sub to YUraxYZ | Made by YUraxYZ Subtitle
-local creditLabel = Instance.new("TextLabel")
-creditLabel.Size = UDim2.new(1, 0, 0, 20)
-creditLabel.Position = UDim2.new(0, 0, 0.49, -30)
-creditLabel.BackgroundTransparency = 1
-creditLabel.Text = "Sub to YUraxYZ | Made by YUraxYZ"
-creditLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-creditLabel.Font = Enum.Font.Gotham
-creditLabel.TextSize = 14
-creditLabel.TextTransparency = 1
-creditLabel.Parent = loadingFrame
-TweenService:Create(creditLabel, TweenInfo.new(1), {TextTransparency = 0}):Play()
 
 -- Loading Message Above Progress Bar
 local loadingMsg = Instance.new("TextLabel")
