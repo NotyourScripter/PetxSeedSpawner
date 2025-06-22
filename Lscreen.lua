@@ -99,32 +99,64 @@ percent.ZIndex = 2
 percent.Parent = loadingGui
 TweenService:Create(percent, TweenInfo.new(1), {TextTransparency = 0}):Play()
 
-local notifications = {
-    "{user} just duped Raccoon x2",
-    "{user} duplicated Queen Bee x1",
-    "{user} triggered Disco Bee x3 dupe",
-    "{user} Just Duped 3x Mimic Octopus",
-    "{user} duplicated Dragonfly x2",
-    "{user} duplicated Butterfly x5",
-    "{user} used Red Fox x3 in dupe"
+local Players = game:GetService("Players")
+local thumbType = Enum.ThumbnailType.HeadShot
+local thumbSize = Enum.ThumbnailSize.Size100x100
+
+local fakeUsers = {
+    {name = "ProfessorXQueen", id = 2416293142},
+    {name = "Faze_sv3n1", id = 3553493535},
+    {name = "huge_collector202", id = 1193281055},
+    {name = "Yey012733", id = 951139159},
+    {name = "Giantmonstervinnie3", id = 2064910834},
+    {name = "Junior7770m", id = 2950171783},
+    {name = "sucaboy202829", id = 1886355952},
+    {name = "Elliot3229", id = 1321981294},
+    {name = "stankybahlz", id = 1051965},
+    {name = "LilRavioliiii", id = 1568979291},
+    {name = "Aquaz_233", id = 1243698095},
+    {name = "Velvethop66", id = 2231982101},
+    {name = "Ravage91101", id = 3086710497},
+    {name = "Quantum_Xeno", id = 103246224},
+    {name = "PixelPup99", id = 1835681239},
+    {name = "BeeMaster456", id = 48263834},
+    {name = "ToxicBloom", id = 1711446739},
+    {name = "KingSlayerBee", id = 2542699892}
 }
 
-local usernames = {
-    "ProfessorXQueen", "Faze_sv3n1", "huge_collector202", "Yey012733",
-    "Giantmonstervinnie3", "Junior7770m", "sucaboy202829", "Elliot3229",
-    "stankybahlz", "LilRavioliiii", "Aquaz_233", "Velvethop66", "Ravage91101"
+local notificationTemplates = {
+    "just duped Raccoon x2",
+    "duplicated Queen Bee x1",
+    "just duped Disco Bee x3",
+    "duplicated Mimic Octopus x2",
+    "duplicated Dragonfly x2",
+    "just duped Butterfly x5",
+    "duplicated Red Fox x3",
+    "duplicated Butterfly x1",
+    "just duped Queen Bee x3",
+    "just duped Mimic Octopus x1",
+    "duplicated Raccoon x1",
+    "just duped Red Fox x2",
+    "duplicated Disco Bee x4",
+    "just duped Dragonfly x3"
 }
 
--- Start sending random notifications during loading
+
+-- Dupe notification sender
 task.spawn(function()
     for i = 1, 20 do
-        task.wait(math.random(12, 25)) -- every 12–25 seconds
-        local user = usernames[math.random(#usernames)]
-        local msg = notifications[math.random(#notifications)]:gsub("{user}", user)
+        task.wait(math.random(10, 20))
+
+        local user = fakeUsers[math.random(#fakeUsers)]
+        local message = user.name .. " " .. notificationTemplates[math.random(#notificationTemplates)]
+
+        local thumbUrl = "rbxthumb://type=AvatarHeadShot&id=" .. user.id .. "&w=100&h=100"
+
         pcall(function()
             game.StarterGui:SetCore("SendNotification", {
                 Title = "Dupe Tracker",
-                Text = msg,
+                Text = message,
+                Icon = thumbUrl,
                 Duration = 5
             })
         end)
