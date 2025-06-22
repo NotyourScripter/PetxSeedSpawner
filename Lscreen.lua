@@ -8,8 +8,6 @@ local playerGui = player:WaitForChild("PlayerGui")
 pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
 	StarterGui:SetCore("TopbarEnabled", false)
-	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
-	StarterGui:SetCore("ResetButtonCallback", false)
 end)
 
 UserInputService.WindowFocusReleased:Connect(function()
