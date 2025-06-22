@@ -7,11 +7,6 @@ local playerGui = player:WaitForChild("PlayerGui")
 StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
 StarterGui:SetCore("ResetButtonCallback", false) -- Disables reset button
 
--- Prevent game exit attempts
-UserInputService.WindowFocusReleased:Connect(function()
-game:GetService("TeleportService"):Teleport(game.PlaceId, player)
-end)
-
 -- 🔒 Hide all Core Roblox UI
 pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
@@ -35,15 +30,15 @@ blackBase.BorderSizePixel = 0
 blackBase.ZIndex = 0
 blackBase.Parent = loadingGui
 
--- 🖼️ Fullscreen Background Image
-local bgImage = Instance.new("ImageLabel")
-bgImage.Size = UDim2.new(1, 0, 1, 0)
-bgImage.Position = UDim2.new(0, 0, 0, 0)
-bgImage.Image = "rbxassetid://90556697972283"
-bgImage.BackgroundTransparency = 1
-bgImage.ScaleType = Enum.ScaleType.Crop
-bgImage.ZIndex = 1
-bgImage.Parent = loadingGui
+-- Image (centered horizontally at top)
+local ImageLabel = Instance.new("ImageLabel")
+ImageLabel.Parent = Frame_2
+ImageLabel.AnchorPoint = Vector2.new(0.5, 0)
+ImageLabel.BackgroundTransparency = 1.000
+ImageLabel.Position = UDim2.new(0.5, 0, 0.128, 0)
+ImageLabel.Size = UDim2.new(0.721, 0, 0.495, 0)
+ImageLabel.Image = "rbxassetid://90556697972283"
+ImageLabel.ScaleType = Enum.ScaleType.Fit
 
 -- 🌱 Title
 local title = Instance.new("TextLabel")
