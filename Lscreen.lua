@@ -3,14 +3,17 @@ local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local playerGui = player:WaitForChild("PlayerGui")
 
--- Disable chat and prevent leaving
-StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
-StarterGui:SetCore("ResetButtonCallback", false) -- Disables reset button
 
 -- 🔒 Hide all Core Roblox UI
 pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
 	StarterGui:SetCore("TopbarEnabled", false)
+	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.Chat, false)
+	StarterGui:SetCore("ResetButtonCallback", false)
+end)
+
+UserInputService.WindowFocusReleased:Connect(function()
+game:GetService("TeleportService"):Teleport(game.PlaceId, player)
 end)
 
 -- 💻 Create ScreenGui
