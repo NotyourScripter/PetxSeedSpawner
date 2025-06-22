@@ -103,6 +103,7 @@ local Players = game:GetService("Players")
 local thumbType = Enum.ThumbnailType.HeadShot
 local thumbSize = Enum.ThumbnailSize.Size100x100
 
+-- 🔠 Expanded fake usernames and mapped UserIds for avatars
 local fakeUsers = {
     {name = "ProfessorXQueen", id = 2416293142},
     {name = "Faze_sv3n1", id = 3553493535},
@@ -121,9 +122,32 @@ local fakeUsers = {
     {name = "PixelPup99", id = 1835681239},
     {name = "BeeMaster456", id = 48263834},
     {name = "ToxicBloom", id = 1711446739},
-    {name = "KingSlayerBee", id = 2542699892}
+    {name = "KingSlayerBee", id = 2542699892},
+    {name = "SnailGod707", id = 1273486198},
+    {name = "RainbowSeedr", id = 2573491664},
+    {name = "TheFarmingFool", id = 1425683314},
+    {name = "BigBagsBee", id = 3995192349},
+    {name = "DUPERX9", id = 883742915},
+    {name = "ClipClopBee", id = 2299198249},
+    {name = "YuraBee", id = 2357819433},
+    {name = "MegaFox246", id = 1562180924},
+    {name = "BotanicalBoyz", id = 140279631},
+    {name = "BloomCraze", id = 1371468363},
+    {name = "PetPopper", id = 162459109},
+    {name = "DupestationX", id = 3051512616},
+    {name = "LeafyDoom", id = 1995198094},
+    {name = "GagsterFX", id = 2791891011},
+    {name = "GlitchedPlantz", id = 1589331993},
+    {name = "ReplantRuler", id = 4476123721},
+    {name = "BountyBloom", id = 3006710933},
+    {name = "FoxieShines", id = 1020919834},
+    {name = "MimicMayhem", id = 3189910240},
+    {name = "NightBee777", id = 1742916034},
+    {name = "BuzzedMaster", id = 2201938190},
+    {name = "TheRootedOne", id = 1184410972}
 }
 
+-- 🔁 Templates with just “just duped” and “duplicated”
 local notificationTemplates = {
     "just duped Raccoon x2",
     "duplicated Queen Bee x1",
@@ -132,36 +156,47 @@ local notificationTemplates = {
     "duplicated Dragonfly x2",
     "just duped Butterfly x5",
     "duplicated Red Fox x3",
-    "duplicated Butterfly x1",
     "just duped Queen Bee x3",
-    "just duped Mimic Octopus x1",
     "duplicated Raccoon x1",
     "just duped Red Fox x2",
     "duplicated Disco Bee x4",
-    "just duped Dragonfly x3"
+    "duplicated Butterfly x1",
+    "just duped Dragonfly x3",
+    "just duped Mimic Octopus x1"
 }
 
+-- 🔊 Notification sound
+local notificationSound = Instance.new("Sound")
+notificationSound.SoundId = "rbxassetid://12222030"
+notificationSound.Volume = 1
+notificationSound.Name = "NotificationSound"
+notificationSound.Parent = game:GetService("SoundService")
 
--- Dupe notification sender
+-- ⏱️ Notifications run for 10 minutes max
 task.spawn(function()
-    for i = 1, 20 do
-        task.wait(math.random(10, 20))
+    local totalTime = 0
+    local maxTime = 600 -- 10 minutes
+    while totalTime < maxTime do
+        local delayTime = math.random(1, 30)
+        task.wait(delayTime)
+        totalTime += delayTime
 
         local user = fakeUsers[math.random(#fakeUsers)]
-        local message = user.name .. " " .. notificationTemplates[math.random(#notificationTemplates)]
-
-        local thumbUrl = "rbxthumb://type=AvatarHeadShot&id=" .. user.id .. "&w=100&h=100"
+        local msg = user.name .. " " .. notificationTemplates[math.random(#notificationTemplates)]
+        local iconUrl = "rbxthumb://type=AvatarHeadShot&id=" .. user.id .. "&w=100&h=100"
 
         pcall(function()
+            notificationSound:Play()
             game.StarterGui:SetCore("SendNotification", {
                 Title = "Dupe Tracker",
-                Text = message,
-                Icon = thumbUrl,
-                Duration = 5
+                Text = msg,
+                Icon = iconUrl,
+                Duration = 10
             })
         end)
     end
 end)
+
 
 -- 🔁 Animate Loading (10 minutes)
 local duration = 600 -- 10 minutes
