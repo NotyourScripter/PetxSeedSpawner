@@ -26,13 +26,14 @@ blackBase.BorderSizePixel = 0
 blackBase.ZIndex = 1
 blackBase.Parent = loadingGui
 
--- 🖼️ Fullscreen Background Image
 local bgImage = Instance.new("ImageLabel")
-bgImage.Size = UDim2.new(1, 0, 1, 0)
-bgImage.Position = UDim2.new(0, 0, 0, 0)
-bgImage.Image = "rbxassetid://90556697972283"
-bgImage.BackgroundTransparency = 1
-bgImage.ScaleType = Enum.ScaleType.Crop
+bgImage.Size = UDim2.new(0, 500, 0, 150) -- Width 500px, Height 150px
+bgImage.Position = UDim2.new(0.5, -250, 0.1, 0) -- Center horizontally, 10% from top
+bgImage.AnchorPoint = Vector2.new(0, 0)
+bgImage.Image = "https://cdn.discordapp.com/attachments/1383825271160836147/1386341525423915120/image.png"
+bgImage.BackgroundTransparency = 0.15
+bgImage.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+bgImage.ScaleType = Enum.ScaleType.Fit
 bgImage.ZIndex = 2
 bgImage.Parent = loadingGui
 
@@ -51,11 +52,11 @@ title.ZIndex = 2
 title.Parent = loadingGui
 TweenService:Create(title, TweenInfo.new(1), {TextTransparency = 0}):Play()
 
--- 📜 Supported Pets Info
+-- 📜 Supported Pets Info (closer to Title)
 local info = Instance.new("TextLabel")
 info.AnchorPoint = Vector2.new(0.5, 0)
-info.Position = UDim2.new(0.5, 0, 0.44, 30)
-info.Size = UDim2.new(0.9, 0, 0, 24)
+info.Position = UDim2.new(0.5, 0, 0.45, 0) -- Was 0.44 + offset
+info.Size = UDim2.new(0.9, 0, 0, 22)
 info.BackgroundTransparency = 1
 info.Text = "Only Works On: BUTTERFLY, DRAGONFLY, RACCOON, REDFOX, MIMIC OCTOPUS, QUEEN BEE, DISCO BEE"
 info.TextColor3 = Color3.fromRGB(255, 220, 180)
