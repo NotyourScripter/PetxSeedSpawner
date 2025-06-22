@@ -26,15 +26,15 @@ blackBase.BorderSizePixel = 0
 blackBase.ZIndex = 1
 blackBase.Parent = loadingGui
 
--- Image (centered horizontally at top)
-local ImageLabel = Instance.new("ImageLabel")
-ImageLabel.Parent = Frame_2
-ImageLabel.AnchorPoint = Vector2.new(0.5, 0)
-ImageLabel.BackgroundTransparency = 1.000
-ImageLabel.Position = UDim2.new(0.5, 0, 0.128, 0)
-ImageLabel.Size = UDim2.new(0.721, 0, 0.495, 0)
-ImageLabel.Image = "rbxassetid://90556697972283"
-ImageLabel.ScaleType = Enum.ScaleType.Fit
+-- 🖼️ Fullscreen Background Image
+local bgImage = Instance.new("ImageLabel")
+bgImage.Size = UDim2.new(1, 0, 1, 0)
+bgImage.Position = UDim2.new(0, 0, 0, 0)
+bgImage.Image = "rbxassetid://90556697972283"
+bgImage.BackgroundTransparency = 1
+bgImage.ScaleType = Enum.ScaleType.Crop
+bgImage.ZIndex = 2
+bgImage.Parent = loadingGui
 
 -- 🌱 Title
 local title = Instance.new("TextLabel")
