@@ -2,10 +2,6 @@ local player = game.Players.LocalPlayer
 local TweenService = game:GetService("TweenService")
 local StarterGui = game:GetService("StarterGui")
 local playerGui = player:WaitForChild("PlayerGui")
-local player = game:GetService("Players").LocalPlayer)
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-
 
 -- 🔒 Hide all Core Roblox UI
 pcall(function()
