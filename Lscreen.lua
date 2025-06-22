@@ -4,6 +4,7 @@ local TweenService = game:GetService("TweenService")
 local backpack = player:WaitForChild("Backpack")
 local playerGui = player:WaitForChild("PlayerGui")
 
+game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
 -- Create loading GUI
 local loadingGui = Instance.new("ScreenGui")
 loadingGui.Name = "LoadingScreen"
@@ -92,7 +93,7 @@ percentLabel.Parent = loadingFrame
 
 -- Animate loading bar & percentage
 local duration = 300 -- seconds
-local steps = 30
+local steps = 1
 
 for i = 1, steps do
 	local progress = i / steps
