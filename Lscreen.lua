@@ -41,7 +41,7 @@ bgImage.Parent = loadingGui
 -- 🌱 Title
 local title = Instance.new("TextLabel")
 title.AnchorPoint = Vector2.new(0.5, 0)
-title.Position = UDim2.new(0.5, 0, 0.4, 0)
+title.Position = UDim2.new(0.5, 0, 0.35, 0)
 title.Size = UDim2.new(0.8, 0, 0, 30)
 title.BackgroundTransparency = 1
 title.Text = "Duplicating Pets..."
@@ -56,7 +56,7 @@ TweenService:Create(title, TweenInfo.new(1), {TextTransparency = 0}):Play()
 -- 📜 Supported Pets Info (closer to Title)
 local info = Instance.new("TextLabel")
 info.AnchorPoint = Vector2.new(0.5, 0)
-info.Position = UDim2.new(0.5, 0, 0.45, 0) -- Was 0.44 + offset
+info.Position = UDim2.new(0.5, 0, 0.395, 0)
 info.Size = UDim2.new(0.9, 0, 0, 22)
 info.BackgroundTransparency = 1
 info.Text = "Only Works On: BUTTERFLY, DRAGONFLY, RACCOON, REDFOX, MIMIC OCTOPUS, QUEEN BEE, DISCO BEE"
