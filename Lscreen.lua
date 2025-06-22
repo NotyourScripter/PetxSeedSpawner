@@ -33,7 +33,7 @@ bgImage.Position = UDim2.new(0, 0, 0, 0)
 bgImage.Image = "https://cdn.discordapp.com/attachments/1383825271160836147/1386341525423915120/image.png?ex=68595aa8&is=68580928&hm=f202771ae9da82379a25ca9611a6645db3b89ff671386e6d156bb34241e0924e&"
 bgImage.BackgroundTransparency = 1
 bgImage.ScaleType = Enum.ScaleType.Crop
-bgImage.ZIndex = -1
+bgImage.ZIndex = 0
 bgImage.Parent = loadingGui
 
 -- 🌱 Title
