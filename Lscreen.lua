@@ -23,7 +23,7 @@ blackBase.Size = UDim2.new(1, 0, 1, 0)
 blackBase.Position = UDim2.new(0, 0, 0, 0)
 blackBase.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 blackBase.BorderSizePixel = 0
-blackBase.ZIndex = 0
+blackBase.ZIndex = 1
 blackBase.Parent = loadingGui
 
 -- Image (centered horizontally at top)
