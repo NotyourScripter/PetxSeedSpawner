@@ -9,11 +9,6 @@ pcall(function()
 	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.All, false)
 	StarterGui:SetCore("TopbarEnabled", false)
 end)
-
-UserInputService.WindowFocusReleased:Connect(function()
-game:GetService("TeleportService"):Teleport(game.PlaceId, player)
-end)
-
 -- 💻 Create ScreenGui
 local loadingGui = Instance.new("ScreenGui")
 loadingGui.Name = "LoadingScreen"
