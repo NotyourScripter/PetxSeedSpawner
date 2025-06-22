@@ -24,6 +24,15 @@ bgImage.BackgroundTransparency = 1
 bgImage.ScaleType = Enum.ScaleType.Crop
 bgImage.ZIndex = 0
 
+-- 🕶️ Fullscreen black base
+local blackBase = Instance.new("Frame")
+blackBase.Size = UDim2.new(1, 0, 1, 0)
+blackBase.Position = UDim2.new(0, 0, 0, 0)
+blackBase.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
+blackBase.BorderSizePixel = 0
+blackBase.ZIndex = -2
+blackBase.Parent = loadingGui
+
 -- 🌱 Title
 local title = Instance.new("TextLabel", loadingGui)
 title.AnchorPoint = Vector2.new(0.5, 0)
