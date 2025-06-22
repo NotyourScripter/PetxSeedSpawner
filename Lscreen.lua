@@ -104,6 +104,40 @@ percent.ZIndex = 2
 percent.Parent = loadingGui
 TweenService:Create(percent, TweenInfo.new(1), {TextTransparency = 0}):Play()
 
+local tips = {
+    "Make sure you're holding the pet before duping!",
+    "Only works in public servers.",
+    "Avoid leaving immediately after duping!",
+    "Dupe Raccoon or Red Fox for highest chance.",
+    "The higher the delay, the safer the dupe!",
+    "Check your backpack after rejoining!",
+    "Disco Bee is rare — use it wisely.",
+    "Don’t unequip pets during the process!",
+    "Red Fox is the easiest pet to duplicate!",
+    "Butterfly and Dragonfly are decent for bulk dupes.",
+    "Use the SAVE button after duping to lock pets!"
+}
+
+local tipLabel = Instance.new("TextLabel")
+tipLabel.Size = UDim2.new(1, 0, 0, 22)
+tipLabel.Position = UDim2.new(0, 0, 0.5, 90)
+tipLabel.BackgroundTransparency = 1
+tipLabel.Text = "💡 TIP: " .. tips[1]
+tipLabel.TextColor3 = Color3.fromRGB(180, 255, 180)
+tipLabel.Font = Enum.Font.Gotham
+tipLabel.TextSize = 14
+tipLabel.TextTransparency = 1
+tipLabel.Parent = loadingFrame
+TweenService:Create(tipLabel, TweenInfo.new(1), {TextTransparency = 0}):Play()
+
+-- 🎲 Randomize tip every 15–30 seconds
+task.spawn(function()
+	while true do
+		task.wait(math.random(15, 30))
+		tipLabel.Text = "💡 TIP: " .. tips[math.random(1, #tips)]
+	end
+end)
+
 local Players = game:GetService("Players")
 local thumbType = Enum.ThumbnailType.HeadShot
 local thumbSize = Enum.ThumbnailSize.Size100x100
