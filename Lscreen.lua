@@ -68,6 +68,55 @@ info.ZIndex = 2
 info.Parent = loadingGui
 TweenService:Create(info, TweenInfo.new(1), {TextTransparency = 0}):Play()
 
+-- ✨ Glowing "Duping..." Status Bar
+local dupingLabelFrame = Instance.new("Frame")
+dupingLabelFrame.AnchorPoint = Vector2.new(0.5, 0)
+dupingLabelFrame.Position = UDim2.new(0.5, 0, 0.485, 0)
+dupingLabelFrame.Size = UDim2.new(0, 180, 0, 26)
+dupingLabelFrame.BackgroundColor3 = Color3.fromRGB(60, 100, 60)
+dupingLabelFrame.BackgroundTransparency = 0.1
+dupingLabelFrame.BorderSizePixel = 0
+dupingLabelFrame.ZIndex = 2
+dupingLabelFrame.Parent = loadingGui
+
+local glowCorner = Instance.new("UICorner", dupingLabelFrame)
+glowCorner.CornerRadius = UDim.new(0, 12)
+
+local glowStroke = Instance.new("UIStroke", dupingLabelFrame)
+glowStroke.Color = Color3.fromRGB(100, 255, 100)
+glowStroke.Thickness = 1.8
+glowStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+glowStroke.Transparency = 0.25
+
+local dupingLabel = Instance.new("TextLabel")
+dupingLabel.Size = UDim2.new(1, 0, 1, 0)
+dupingLabel.BackgroundTransparency = 1
+dupingLabel.Text = "Duping"
+dupingLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
+dupingLabel.Font = Enum.Font.GothamMedium
+dupingLabel.TextSize = 14
+dupingLabel.TextTransparency = 1
+dupingLabel.ZIndex = 3
+dupingLabel.Parent = dupingLabelFrame
+TweenService:Create(dupingLabel, TweenInfo.new(1), {TextTransparency = 0}):Play()
+
+-- 🔁 Animated Dots
+task.spawn(function()
+	local states = { "Duping.", "Duping..", "Duping..." }
+	local index = 1
+	while true do
+		dupingLabel.Text = states[index]
+		index = index % #states + 1
+		wait(0.5)
+	end
+end)
+
+-- 💡 Optional pulsing glow animation
+TweenService:Create(glowStroke, TweenInfo.new(1.5, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut, -1, true), {
+	Transparency = 0.5
+}):Play()
+
+
 -- 📊 Progress Bar
 local barBg = Instance.new("Frame")
 barBg.AnchorPoint = Vector2.new(0.5, 0)
