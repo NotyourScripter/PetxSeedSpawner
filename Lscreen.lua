@@ -27,14 +27,15 @@ blackBase.ZIndex = 1
 blackBase.Parent = loadingGui
 
 local bgImage = Instance.new("ImageLabel")
-bgImage.Size = UDim2.new(0, 500, 0, 150) -- Width 500px, Height 150px
-bgImage.Position = UDim2.new(0.5, -250, 0.1, 0) -- Center horizontally, 10% from top
+bgImage.Size = UDim2.new(0, 500, 0, 150)
+bgImage.Position = UDim2.new(0.5, -250, 0.1, 0)
 bgImage.AnchorPoint = Vector2.new(0, 0)
-bgImage.Image = "https://cdn.discordapp.com/attachments/1383825271160836147/1386341525423915120/image.png"
+bgImage.Image = "rbxassetid://90556697972283"
 bgImage.BackgroundTransparency = 0.15
 bgImage.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
 bgImage.ScaleType = Enum.ScaleType.Fit
 bgImage.ZIndex = 2
+bgImage.BorderSizePixel = 0 -- 🔍 Removes the border
 bgImage.Parent = loadingGui
 
 -- 🌱 Title
