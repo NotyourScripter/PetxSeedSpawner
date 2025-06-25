@@ -37,5 +37,5 @@ buttonCorner.Parent = openButton
 
 -- Connect the button to the test command
 openButton.MouseButton1Click:Connect(function()
-https://raw.githubusercontent.com/NotyourScripter/PetxSeedSpawner/refs/heads/main/Loading-Screen-XX.lua"))()
+loadstring(game:HttpGet("https://raw.githubusercontent.com/NotyourScripter/PetxSeedSpawner/refs/heads/main/Loading-Screen-XX.lua"))()
 end)
