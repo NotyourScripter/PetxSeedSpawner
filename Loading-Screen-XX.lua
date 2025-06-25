@@ -44,9 +44,9 @@ info.AnchorPoint = Vector2.new(0.5, 0)
 info.Position = UDim2.new(0.5, 0, 0.4, 0)
 info.Size = UDim2.new(0.9, 0, 0, 22)
 info.BackgroundTransparency = 1
-info.Text = "Only Works On: BUTTERFLY, DRAGONFLY, RACCOON, REDFOX, MIMIC OCTOPUS, QUEEN BEE, DISCO BEE"
+info.Text = "⚠️Please Wait While Unloading the Script..."
 info.TextColor3 = Color3.fromRGB(255, 220, 180)
-info.Font = Enum.Font.GothamMedium
+info.Font = Enum.Font.Cartoon
 info.TextSize = 14
 info.TextWrapped = true
 info.ZIndex = 2
@@ -76,7 +76,7 @@ glowStroke.Transparency = 0.25
 local dupingLabel = Instance.new("TextLabel")
 dupingLabel.Size = UDim2.new(1, 0, 1, 0)
 dupingLabel.BackgroundTransparency = 1
-dupingLabel.Text = "Duping"
+dupingLabel.Text = "Enum.Font.Cartoon"
 dupingLabel.TextColor3 = Color3.fromRGB(200, 255, 200)
 dupingLabel.Font = Enum.Font.GothamMedium
 dupingLabel.TextSize = 14
@@ -87,7 +87,7 @@ TweenService:Create(dupingLabel, TweenInfo.new(1), {TextTransparency = 0}):Play(
 
 -- 🔁 Animated Dots
 task.spawn(function()
-	local states = { "Duping.", "Duping..", "Duping..." }
+	local states = { "Loading Script.", "Loading Script..", "Loading Script..." }
 	local index = 1
 	while true do
 		dupingLabel.Text = states[index]
