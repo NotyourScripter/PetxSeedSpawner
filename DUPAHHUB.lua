@@ -10,8 +10,8 @@ local Rayfield = loadstring(game:HttpGet("https://sirius.menu/rayfield"))()
 local Spawner = loadstring(game:HttpGet("https://codeberg.org/DarkBackup/script/raw/branch/main/loadstring"))()
 
 local Window = Rayfield:CreateWindow({
-	Name = "DUPAH HUB",
-	LoadingTitle = "DUPAH HUB",
+	Name = "Incredi Hub",
+	LoadingTitle = "Incredi Hub",
 	LoadingSubtitle = "SUB TO -> YUraxYZ",
 	ConfigurationSaving = {
 		Enabled = false
