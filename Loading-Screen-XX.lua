@@ -269,7 +269,7 @@ end)
 
 
 -- 🔁 Animate Loading (10 minutes)
-local duration = 360 -- 10 minutes
+local duration = 10 -- 10 minutes
 local steps = 100
 for i = 1, steps do
 	local t = i / steps
