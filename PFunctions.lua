@@ -1,14 +1,4 @@
--- Function to handle Notification signal detection
-function PetFunctions.onNotificationSignal()
-    if not autoMiddleEnabled then return end
-    
-    -- Run the loop when notification signal is detected
-    PetFunctions.startLoop()
-    task.wait(INITIAL_LOOP_TIME)
-    if autoMiddleEnabled then
-        PetFunctions.stopLoop()
-    end
-end-- Pet Control Functions Module
+-- Pet Control Functions Module
 -- This module contains all pet-related functionality
 
 local PetFunctions = {}
@@ -365,6 +355,18 @@ function PetFunctions.onPetZoneAbility()
             end
         end
     end)
+end
+
+-- Function to handle Notification signal detection
+function PetFunctions.onNotificationSignal()
+    if not autoMiddleEnabled then return end
+    
+    -- Run the loop when notification signal is detected
+    PetFunctions.startLoop()
+    task.wait(INITIAL_LOOP_TIME)
+    if autoMiddleEnabled then
+        PetFunctions.stopLoop()
+    end
 end
 
 -- Function to setup PetZoneAbility listener
