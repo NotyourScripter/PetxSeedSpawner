@@ -1,5 +1,5 @@
 -- Pet Control Functions Module
--- This module contains all pet-related functionality with backpack detection
+-- This module contains all pet-related functionality with backpack detection for actual pet names
 
 local PetFunctions = {}
 
@@ -58,6 +58,7 @@ local petCountLabel = nil
 local petDropdown = nil
 local currentPetsList = {}
 local lastZoneAbilityTime = 0 -- Track last zone ability time
+local petNameDatabase = {} -- Store pet ID to name mapping
 
 -- Function to extract pet name from backpack item
 function PetFunctions.extractPetName(itemName)
@@ -77,60 +78,8 @@ function PetFunctions.extractPetName(itemName)
     return cleanName
 end
 
--- Function to get pet name from workspace pet model
-function PetFunctions.extractPetNameFromModel(petModel)
-    -- Try to find pet name from various sources in the model
-    local petName = "Pet"
-    
-    -- Check for StringValue or other name holders
-    local function searchForName(parent, depth)
-        if depth > 3 then return nil end -- Limit search depth
-        
-        for _, child in pairs(parent:GetChildren()) do
-            -- Look for common name patterns
-            if child.Name == "PetName" or child.Name == "Name" or child.Name == "DisplayName" then
-                if child:IsA("StringValue") and child.Value ~= "" then
-                    return PetFunctions.extractPetName(child.Value)
-                elseif child:IsA("TextLabel") and child.Text ~= "" then
-                    return PetFunctions.extractPetName(child.Text)
-                end
-            end
-            
-            -- Check attributes
-            local nameAttr = child:GetAttribute("PetName") or child:GetAttribute("Name") or child:GetAttribute("DisplayName")
-            if nameAttr and nameAttr ~= "" then
-                return PetFunctions.extractPetName(tostring(nameAttr))
-            end
-            
-            -- Recursively search children
-            if child:IsA("Model") or child:IsA("Folder") or child:IsA("Part") then
-                local foundName = searchForName(child, depth + 1)
-                if foundName then return foundName end
-            end
-        end
-        return nil
-    end
-    
-    -- Search the pet model for name information
-    local foundName = searchForName(petModel, 0)
-    if foundName and foundName ~= "" then
-        petName = foundName
-    else
-        -- Try to get name from model's own attributes or name
-        local modelNameAttr = petModel:GetAttribute("PetName") or petModel:GetAttribute("Name")
-        if modelNameAttr and modelNameAttr ~= "" then
-            petName = PetFunctions.extractPetName(tostring(modelNameAttr))
-        elseif petModel.Name and not PetFunctions.isValidUUID(petModel.Name) then
-            -- If model name is not a UUID, it might be the pet name
-            petName = PetFunctions.extractPetName(petModel.Name)
-        end
-    end
-    
-    return petName
-end
-
--- Function to get pets from backpack
-function PetFunctions.getBackpackPets()
+-- Function to get pets from backpack and build name database
+function PetFunctions.getBackpackPetsAndBuildDatabase()
     local backpackPets = {}
     local player = Players.LocalPlayer
     
@@ -141,14 +90,21 @@ function PetFunctions.getBackpackPets()
     for _, item in pairs(player.Backpack:GetChildren()) do
         if item:IsA("Tool") and (item:FindFirstChild("PetToolServer") or item:FindFirstChild("PetToolLocal")) then
             local cleanName = PetFunctions.extractPetName(item.Name)
+            local petId = item:GetDebugId() -- Use DebugId as identifier
+            
+            -- Store in name database for later reference
+            petNameDatabase[petId] = {
+                cleanName = cleanName,
+                originalName = item.Name
+            }
             
             table.insert(backpackPets, {
-                id = item:GetDebugId(), -- Use DebugId as unique identifier
+                id = petId,
                 name = cleanName,
                 originalName = item.Name,
                 tool = item,
                 isBackpackPet = true,
-                position = Vector3.new(0, 0, 0) -- Backpack pets don't have position
+                position = Vector3.new(0, 0, 0)
             })
         end
     end
@@ -205,6 +161,14 @@ function PetFunctions.getPetIdFromPetMover(petMover)
     return petMover:GetFullName()
 end
 
+-- Function to get pet name from database
+function PetFunctions.getPetNameFromDatabase(petId)
+    if petNameDatabase[petId] then
+        return petNameDatabase[petId].cleanName
+    end
+    return "Pet" -- Default fallback
+end
+
 -- Function to create ESP "X" marker
 function PetFunctions.createESPMarker(pet)
     if excludedPetESPs[pet.id] then
@@ -247,7 +211,7 @@ function PetFunctions.removeESPMarker(petId)
     end
 end
 
--- Function to get all pets (active pets only)
+-- Function to get all pets (active pets only with names from database)
 function PetFunctions.getAllPets()
     local pets = {}
     
@@ -256,7 +220,7 @@ function PetFunctions.getAllPets()
         if petMover and petMover:IsA("BasePart") then
             local petId = PetFunctions.getPetIdFromPetMover(petMover)
             if petId then
-                local petName = PetFunctions.extractPetNameFromModel(container)
+                local petName = PetFunctions.getPetNameFromDatabase(petId)
                 table.insert(pets, {
                     id = petId,
                     name = petName,
@@ -273,7 +237,7 @@ function PetFunctions.getAllPets()
             if child:IsA("Part") and child.Name == "PetMover" then
                 local petId = PetFunctions.getPetIdFromPetMover(child)
                 if petId then
-                    local petName = PetFunctions.extractPetNameFromModel(child.Parent)
+                    local petName = PetFunctions.getPetNameFromDatabase(petId)
                     table.insert(pets, {
                         id = petId,
                         name = petName,
@@ -341,6 +305,41 @@ function PetFunctions.equipAllPets()
             PetsService:FireServer("EquipPet")
         end)
     end
+end
+
+-- Enhanced refresh function with backpack name detection
+function PetFunctions.refreshPetsWithNameDetection()
+    -- Step 1: Unequip all pets to move them to backpack
+    print("Refreshing pets with name detection...")
+    PetFunctions.unequipAllPets()
+    
+    -- Step 2: Wait for pets to appear in backpack
+    task.wait(0.3)
+    
+    -- Step 3: Read backpack pets and build name database
+    local backpackPets = PetFunctions.getBackpackPetsAndBuildDatabase()
+    print("Found " .. #backpackPets .. " pets in backpack, building name database...")
+    
+    -- Step 4: Re-equip all pets
+    PetFunctions.equipAllPets()
+    
+    -- Step 5: Wait for pets to be re-equipped
+    task.wait(0.5)
+    
+    -- Step 6: Refresh the active pets list (now with proper names)
+    selectedPets = {}
+    allPetsSelected = false
+    petsFolder = PetFunctions.findPetsFolder()
+    local pets = PetFunctions.getAllPets()
+    PetFunctions.updateDropdownOptions()
+    
+    print("Pet refresh complete! Found " .. #pets .. " active pets with names.")
+    return pets
+end
+
+-- Function to refresh pets with equip/unequip cycle (now uses name detection)
+function PetFunctions.refreshPetsWithEquipCycle()
+    return PetFunctions.refreshPetsWithNameDetection()
 end
 
 -- Function to get farm center point
@@ -536,6 +535,9 @@ function PetFunctions.cleanup()
         end
     end
     excludedPetESPs = {}
+    
+    -- Clear name database
+    petNameDatabase = {}
 end
 
 -- Function to select all pets
@@ -548,7 +550,7 @@ function PetFunctions.selectAllPets()
     end
 end
 
--- Function to update dropdown options
+-- Function to update dropdown options (now with actual pet names)
 function PetFunctions.updateDropdownOptions()
     local pets = PetFunctions.getAllPets()
     currentPetsList = {}
@@ -556,6 +558,7 @@ function PetFunctions.updateDropdownOptions()
     
     for i, pet in pairs(pets) do
         local shortId = string.sub(tostring(pet.id), 1, 8)
+        -- Use actual pet name if available, otherwise fall back to ID
         local displayName = pet.name .. " (" .. shortId .. "...)"
         table.insert(dropdownOptions, displayName)
         currentPetsList[displayName] = pet
@@ -567,35 +570,14 @@ function PetFunctions.updateDropdownOptions()
     end
 end
 
--- Enhanced refresh pets function with equip/unequip cycle and name detection
+-- Function to refresh pets (basic version without name detection)
 function PetFunctions.refreshPets()
-    -- Clear current selections
     selectedPets = {}
     allPetsSelected = false
-    
-    -- Do equip/unequip cycle to refresh pets and ensure they're properly loaded
-    print("Refreshing pets with equip/unequip cycle...")
-    PetFunctions.unequipAllPets()
-    task.wait(0.2) -- Slightly longer delay to ensure unequip completes
-    PetFunctions.equipAllPets()
-    task.wait(0.8) -- Longer wait for pets to be fully equipped and names to load
-    
-    -- Find pets folder
     petsFolder = PetFunctions.findPetsFolder()
-    
-    -- Get updated pets list with names
     local pets = PetFunctions.getAllPets()
-    print("Found " .. #pets .. " pets after refresh")
-    
-    -- Update dropdown with new pet names
     PetFunctions.updateDropdownOptions()
-    
     return pets
-end
-
--- Legacy function kept for compatibility (now calls enhanced refresh)
-function PetFunctions.refreshPetsWithEquipCycle()
-    return PetFunctions.refreshPets()
 end
 
 -- Function to update pet count
@@ -640,6 +622,16 @@ function PetFunctions.getExcludedPetIds()
         table.insert(ids, petId)
     end
     return ids
+end
+
+-- Function to get pet name database
+function PetFunctions.getPetNameDatabase()
+    return petNameDatabase
+end
+
+-- Function to manually trigger name detection
+function PetFunctions.detectPetNames()
+    return PetFunctions.refreshPetsWithNameDetection()
 end
 
 -- Getters and Setters
@@ -687,10 +679,10 @@ end
 -- Initialize Pet Services
 initializePetServices()
 
--- Initialize the system with auto refresh
+-- Initialize the system with auto refresh (using name detection)
 task.spawn(function()
     task.wait(1) -- Wait a moment for everything to load
-    PetFunctions.refreshPets()
+    PetFunctions.refreshPetsWithNameDetection()
     PetFunctions.updatePetCount()
 end)
 
@@ -700,6 +692,8 @@ PetFunctions.updateDropdownOptions()
 _G.updateDropdownOptions = PetFunctions.updateDropdownOptions
 _G.refreshPets = PetFunctions.refreshPets
 _G.refreshPetsWithEquipCycle = PetFunctions.refreshPetsWithEquipCycle
+_G.refreshPetsWithNameDetection = PetFunctions.refreshPetsWithNameDetection
+_G.detectPetNames = PetFunctions.detectPetNames
 _G.isPetExcluded = PetFunctions.isPetExcluded
 _G.getExcludedPetCount = PetFunctions.getExcludedPetCount
 _G.getExcludedPetIds = PetFunctions.getExcludedPetIds
