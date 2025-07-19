@@ -1,4 +1,14 @@
--- Pet Control Functions Module
+-- Function to handle Notification signal detection
+function PetFunctions.onNotificationSignal()
+    if not autoMiddleEnabled then return end
+    
+    -- Run the loop when notification signal is detected
+    PetFunctions.startLoop()
+    task.wait(INITIAL_LOOP_TIME)
+    if autoMiddleEnabled then
+        PetFunctions.stopLoop()
+    end
+end-- Pet Control Functions Module
 -- This module contains all pet-related functionality
 
 local PetFunctions = {}
@@ -15,10 +25,12 @@ local LOOP_DELAY = 1
 local INITIAL_LOOP_TIME = 5
 local ZONE_ABILITY_DELAY = 3
 local ZONE_ABILITY_LOOP_TIME = 3
+local AUTO_LOOP_INTERVAL = 240 -- 4 minutes in seconds
 
 -- Pet Control Services
 local ActivePetService = ReplicatedStorage.GameEvents.ActivePetService
 local PetZoneAbility = ReplicatedStorage.GameEvents.PetZoneAbility
+local Notification = ReplicatedStorage.GameEvents.Notification
 
 -- Pet Control Variables
 local petsFolder = nil
@@ -29,12 +41,14 @@ local allPetsSelected = false
 local autoMiddleEnabled = false
 local autoMiddleConnection = nil
 local zoneAbilityConnection = nil
+local notificationConnection = nil
 local loopTimer = nil
 local delayTimer = nil
 local isLooping = false
 local petCountLabel = nil
 local petDropdown = nil
 local currentPetsList = {}
+local lastZoneAbilityTime = 0 -- Track last zone ability time
 
 -- Function to check if string is UUID format
 function PetFunctions.isValidUUID(str)
@@ -61,6 +75,28 @@ function PetFunctions.findPetsFolder()
     end
     
     return nil
+end
+
+-- Function to get clean pet name from backpack tool
+function PetFunctions.getPetNameFromBackpack(petId)
+    local player = Players.LocalPlayer
+    if not player or not player.Backpack then return "Pet" end
+    
+    for _, tool in pairs(player.Backpack:GetChildren()) do
+        if tool:IsA("Tool") and (tool:FindFirstChild("PetToolLocal") or tool:FindFirstChild("PetToolServer")) then
+            local petName = tool.Name
+            if petName and petName ~= "" then
+                -- Extract just the pet type (remove weight and age)
+                -- Example: "Raccoon [1.49 KG] [Age 1]" -> "Raccoon"
+                local cleanName = string.match(petName, "^([^%[]+)")
+                if cleanName then
+                    return string.gsub(cleanName, "%s+$", "") -- Remove trailing spaces
+                end
+            end
+        end
+    end
+    
+    return "Pet"
 end
 
 -- Function to get pet ID from PetMover
@@ -136,9 +172,10 @@ function PetFunctions.getAllPets()
         if petMover and petMover:IsA("BasePart") then
             local petId = PetFunctions.getPetIdFromPetMover(petMover)
             if petId then
+                local petName = PetFunctions.getPetNameFromBackpack(petId)
                 table.insert(pets, {
                     id = petId,
-                    name = "Pet",
+                    name = petName,
                     model = container,
                     mover = petMover,
                     position = petMover.Position
@@ -152,9 +189,10 @@ function PetFunctions.getAllPets()
             if child:IsA("Part") and child.Name == "PetMover" then
                 local petId = PetFunctions.getPetIdFromPetMover(child)
                 if petId then
+                    local petName = PetFunctions.getPetNameFromBackpack(petId)
                     table.insert(pets, {
                         id = petId,
-                        name = "Pet",
+                        name = petName,
                         model = child.Parent,
                         mover = child,
                         position = child.Position
@@ -310,6 +348,9 @@ end
 function PetFunctions.onPetZoneAbility()
     if not autoMiddleEnabled then return end
     
+    -- Update the last zone ability time
+    lastZoneAbilityTime = tick()
+    
     if delayTimer then
         task.cancel(delayTimer)
     end
@@ -334,6 +375,14 @@ function PetFunctions.setupZoneAbilityListener()
     zoneAbilityConnection = PetZoneAbility.OnClientEvent:Connect(PetFunctions.onPetZoneAbility)
 end
 
+-- Function to setup Notification listener
+function PetFunctions.setupNotificationListener()
+    if notificationConnection then
+        notificationConnection:Disconnect()
+    end
+    notificationConnection = Notification.OnClientEvent:Connect(PetFunctions.onNotificationSignal)
+end
+
 -- Function to cleanup all timers and connections
 function PetFunctions.cleanup()
     PetFunctions.stopLoop()
@@ -341,6 +390,11 @@ function PetFunctions.cleanup()
     if zoneAbilityConnection then
         zoneAbilityConnection:Disconnect()
         zoneAbilityConnection = nil
+    end
+    
+    if notificationConnection then
+        notificationConnection:Disconnect()
+        notificationConnection = nil
     end
     
     if loopTimer then
@@ -379,7 +433,7 @@ function PetFunctions.updateDropdownOptions()
     
     for i, pet in pairs(pets) do
         local shortId = string.sub(tostring(pet.id), 1, 8)
-        local displayName = "Pet (" .. shortId .. "...)"
+        local displayName = pet.name .. " (" .. shortId .. "...)"
         table.insert(dropdownOptions, displayName)
         currentPetsList[displayName] = pet
     end
@@ -447,6 +501,15 @@ end
 -- Getters and Setters
 function PetFunctions.setAutoMiddleEnabled(enabled)
     autoMiddleEnabled = enabled
+    if enabled then
+        lastZoneAbilityTime = tick() -- Reset timer when enabling
+        PetFunctions.setupNotificationListener()
+    else
+        if notificationConnection then
+            notificationConnection:Disconnect()
+            notificationConnection = nil
+        end
+    end
 end
 
 function PetFunctions.getAutoMiddleEnabled()
@@ -477,7 +540,13 @@ function PetFunctions.setExcludedPets(pets)
     excludedPets = pets
 end
 
--- Initialize the system
+-- Initialize the system with auto refresh
+task.spawn(function()
+    task.wait(1) -- Wait a moment for everything to load
+    PetFunctions.refreshPets()
+    PetFunctions.updatePetCount()
+end)
+
 PetFunctions.updateDropdownOptions()
 
 -- Make functions available globally if needed
