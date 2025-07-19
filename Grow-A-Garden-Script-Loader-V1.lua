@@ -1119,48 +1119,6 @@ MiscTab:AddButton({
 	end
 })
 
--- Script Hub Tab
-local HubTab = Window:MakeTab({
-	Name = "Script Hub",
-	Icon = "rbxassetid://6031075938", -- Change to any icon you prefer
-	PremiumOnly = false
-})
-
-HubTab:AddParagraph("Script Hub", "Access Known and Popular Grow A Garden Scripts!")
-
--- NoLag Script
-HubTab:AddButton({
-	Name = "NoLag Hub (NEED KEY)",
-	Callback = function()
-		loadstring(game:HttpGet("https://pastefy.app/vtPTiwXW/raw"))()
-	end
-})
-
--- SpeedHubX Script
-HubTab:AddButton({
-	Name = "SpeedHubX (KeyLess)",
-	Callback = function()
-		loadstring(game:HttpGet("https://pastefy.app/WoOK6eg3/raw"))()
-	end
-})
-
--- NatHub Script
-HubTab:AddButton({
-	Name = "NatHub Freemium (NEED KEY)",
-	Callback = function()
-		loadstring(game:HttpGet("https://pastefy.app/tRfi3OBz/raw"))()
-	end
-})
-
--- LimitHub Script
-HubTab:AddButton({
-	Name = "LimitHub (NEED KEY)",
-	Callback = function()
-		loadstring(game:HttpGet("https://pastefy.app/mS6aJLfY/raw"))()
-	end
-})
-
--- Social Tab
 local SocialTab = Window:MakeTab({
 	Name = "Social",
 	Icon = "rbxassetid://6031075938", -- You can change this icon
