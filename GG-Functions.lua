@@ -432,7 +432,7 @@ end
 function Functions.updateDropdownOptions()
     local pets = Functions.getAllPets()
     currentPetsList = {}
-    local dropdownOptions = {"None", "Clear All Exclusions", "Exclude All Pets"}
+    local dropdownOptions = {}
     
     for i, pet in pairs(pets) do
         local shortId = string.sub(tostring(pet.id), 1, 8)
