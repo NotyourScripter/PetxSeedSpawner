@@ -1,5 +1,5 @@
 -- Pet Control Functions Module
--- This module contains all pet-related functionality with backpack detection for actual pet names
+-- This module contains all pet-related functionality with ActivePetsControllerUI detection
 
 local PetFunctions = {}
 
@@ -22,24 +22,9 @@ local ActivePetService = ReplicatedStorage.GameEvents.ActivePetService
 local PetZoneAbility = ReplicatedStorage.GameEvents.PetZoneAbility
 local Notification = ReplicatedStorage.GameEvents.Notification
 
--- Pet Services for equip/unequip
-local PetsService = nil
-local ActivePetsUIController = nil
-
--- Initialize Pet Services
-local function initializePetServices()
-    pcall(function()
-        PetsService = ReplicatedStorage.Modules.PetServices.ActivePetsService
-    end)
-    pcall(function()
-        if not PetsService then
-            PetsService = ReplicatedStorage.Modules.ActivePetsUIController
-        end
-    end)
-    pcall(function()
-        ActivePetsUIController = ReplicatedStorage.Modules.ActivePetsUIController
-    end)
-end
+-- Updated Pet Services for equip/unequip
+local PetsService = ReplicatedStorage.GameEvents.PetsService -- RemoteEvent
+local RefreshActivePetsUI = ReplicatedStorage.GameEvents.RefreshActivePetsUI -- For UI refresh
 
 -- Pet Control Variables
 local petsFolder = nil
@@ -58,7 +43,54 @@ local petCountLabel = nil
 local petDropdown = nil
 local currentPetsList = {}
 local lastZoneAbilityTime = 0 -- Track last zone ability time
-local petNameDatabase = {} -- Store pet ID to name mapping
+
+-- Function to get pets from ActivePetsControllerUI
+function PetFunctions.getPetsFromActivePetsUI()
+    local pets = {}
+    local player = Players.LocalPlayer
+    
+    -- Try to find ActivePetsControllerUI in PlayerGui
+    if not player.PlayerGui then
+        return pets
+    end
+    
+    local activePetsUI = player.PlayerGui:FindFirstChild("ActivePetsControllerUI") or
+                        player.PlayerGui:FindFirstChild("ActivePetsUI") or
+                        player.PlayerGui:FindFirstChild("PetsUI")
+    
+    if not activePetsUI then
+        return pets
+    end
+    
+    -- Look for pet data in the UI structure
+    local function searchForPetData(parent)
+        for _, child in pairs(parent:GetChildren()) do
+            -- Look for pet containers or frames
+            if child:IsA("Frame") or child:IsA("ScrollingFrame") then
+                -- Check if this contains pet information
+                local petName = child:FindFirstChild("PetName") or child:FindFirstChild("Name")
+                local petId = child:FindFirstChild("PetId") or child:FindFirstChild("Id")
+                
+                if petName and petName:IsA("TextLabel") then
+                    local id = petId and petId.Text or child.Name
+                    table.insert(pets, {
+                        id = id,
+                        name = petName.Text,
+                        uiElement = child,
+                        isActivePet = true,
+                        position = Vector3.new(0, 0, 0) -- UI pets don't have world position
+                    })
+                end
+                
+                -- Recursively search child frames
+                searchForPetData(child)
+            end
+        end
+    end
+    
+    searchForPetData(activePetsUI)
+    return pets
+end
 
 -- Function to extract pet name from backpack item
 function PetFunctions.extractPetName(itemName)
@@ -78,8 +110,8 @@ function PetFunctions.extractPetName(itemName)
     return cleanName
 end
 
--- Function to get pets from backpack and build name database
-function PetFunctions.getBackpackPetsAndBuildDatabase()
+-- Function to get pets from backpack
+function PetFunctions.getBackpackPets()
     local backpackPets = {}
     local player = Players.LocalPlayer
     
@@ -90,21 +122,14 @@ function PetFunctions.getBackpackPetsAndBuildDatabase()
     for _, item in pairs(player.Backpack:GetChildren()) do
         if item:IsA("Tool") and (item:FindFirstChild("PetToolServer") or item:FindFirstChild("PetToolLocal")) then
             local cleanName = PetFunctions.extractPetName(item.Name)
-            local petId = item:GetDebugId() -- Use DebugId as identifier
-            
-            -- Store in name database for later reference
-            petNameDatabase[petId] = {
-                cleanName = cleanName,
-                originalName = item.Name
-            }
             
             table.insert(backpackPets, {
-                id = petId,
+                id = item:GetDebugId(), -- Use DebugId as unique identifier
                 name = cleanName,
                 originalName = item.Name,
                 tool = item,
                 isBackpackPet = true,
-                position = Vector3.new(0, 0, 0)
+                position = Vector3.new(0, 0, 0) -- Backpack pets don't have position
             })
         end
     end
@@ -161,18 +186,15 @@ function PetFunctions.getPetIdFromPetMover(petMover)
     return petMover:GetFullName()
 end
 
--- Function to get pet name from database
-function PetFunctions.getPetNameFromDatabase(petId)
-    if petNameDatabase[petId] then
-        return petNameDatabase[petId].cleanName
-    end
-    return "Pet" -- Default fallback
-end
-
 -- Function to create ESP "X" marker
 function PetFunctions.createESPMarker(pet)
     if excludedPetESPs[pet.id] then
         return -- ESP already exists
+    end
+    
+    -- Only create ESP for pets with physical presence (mover)
+    if not pet.mover then
+        return
     end
     
     local billboard = Instance.new("BillboardGui")
@@ -211,19 +233,25 @@ function PetFunctions.removeESPMarker(petId)
     end
 end
 
--- Function to get all pets (active pets only with names from database)
+-- Function to get all pets (combining ActivePetsUI and physical pets)
 function PetFunctions.getAllPets()
     local pets = {}
     
+    -- Get pets from ActivePetsControllerUI first
+    local uiPets = PetFunctions.getPetsFromActivePetsUI()
+    for _, pet in pairs(uiPets) do
+        table.insert(pets, pet)
+    end
+    
+    -- Get physical pets from workspace
     local function processPetContainer(container)
         local petMover = container:FindFirstChild("PetMover")
         if petMover and petMover:IsA("BasePart") then
             local petId = PetFunctions.getPetIdFromPetMover(petMover)
             if petId then
-                local petName = PetFunctions.getPetNameFromDatabase(petId)
                 table.insert(pets, {
                     id = petId,
-                    name = petName,
+                    name = "Pet",
                     model = container,
                     mover = petMover,
                     position = petMover.Position
@@ -237,10 +265,9 @@ function PetFunctions.getAllPets()
             if child:IsA("Part") and child.Name == "PetMover" then
                 local petId = PetFunctions.getPetIdFromPetMover(child)
                 if petId then
-                    local petName = PetFunctions.getPetNameFromDatabase(petId)
                     table.insert(pets, {
                         id = petId,
-                        name = petName,
+                        name = "Pet",
                         model = child.Parent,
                         mover = child,
                         position = child.Position
@@ -252,7 +279,7 @@ function PetFunctions.getAllPets()
         end
     end
     
-    -- Get active pets from workspace only
+    -- Get active pets from workspace
     if not petsFolder then
         petsFolder = PetFunctions.findPetsFolder()
     end
@@ -281,65 +308,41 @@ function PetFunctions.getAllPets()
     return pets
 end
 
--- Function to unequip all pets
+-- Function to unequip all pets using new service
 function PetFunctions.unequipAllPets()
-    if not PetsService then
-        initializePetServices()
-    end
-    
-    if PetsService then
-        pcall(function()
-            PetsService:FireServer("UnequipPet")
-        end)
-    end
+    pcall(function()
+        PetsService:FireServer("UnequipPet")
+    end)
 end
 
--- Function to equip all pets
+-- Function to equip all pets using new service
 function PetFunctions.equipAllPets()
-    if not PetsService then
-        initializePetServices()
-    end
-    
-    if PetsService then
-        pcall(function()
-            PetsService:FireServer("EquipPet")
-        end)
-    end
+    pcall(function()
+        PetsService:FireServer("EquipPet")
+    end)
 end
 
--- Enhanced refresh function with backpack name detection
-function PetFunctions.refreshPetsWithNameDetection()
-    -- Step 1: Unequip all pets to move them to backpack
-    print("Refreshing pets with name detection...")
-    PetFunctions.unequipAllPets()
-    
-    -- Step 2: Wait for pets to appear in backpack
-    task.wait(0.3)
-    
-    -- Step 3: Read backpack pets and build name database
-    local backpackPets = PetFunctions.getBackpackPetsAndBuildDatabase()
-    print("Found " .. #backpackPets .. " pets in backpack, building name database...")
-    
-    -- Step 4: Re-equip all pets
-    PetFunctions.equipAllPets()
-    
-    -- Step 5: Wait for pets to be re-equipped
-    task.wait(0.5)
-    
-    -- Step 6: Refresh the active pets list (now with proper names)
-    selectedPets = {}
-    allPetsSelected = false
-    petsFolder = PetFunctions.findPetsFolder()
-    local pets = PetFunctions.getAllPets()
-    PetFunctions.updateDropdownOptions()
-    
-    print("Pet refresh complete! Found " .. #pets .. " active pets with names.")
-    return pets
+-- Function to refresh Active Pets UI
+function PetFunctions.refreshActivePetsUI()
+    pcall(function()
+        firesignal(RefreshActivePetsUI.OnClientEvent)
+    end)
 end
 
--- Function to refresh pets with equip/unequip cycle (now uses name detection)
+-- Function to refresh pets with equip/unequip cycle
 function PetFunctions.refreshPetsWithEquipCycle()
-    return PetFunctions.refreshPetsWithNameDetection()
+    -- Quick unequip and equip cycle
+    PetFunctions.unequipAllPets()
+    task.wait(0.1) -- Small delay
+    PetFunctions.equipAllPets()
+    task.wait(0.5) -- Wait for pets to be equipped
+    
+    -- Refresh the UI
+    PetFunctions.refreshActivePetsUI()
+    task.wait(0.2)
+    
+    -- Then refresh normally
+    return PetFunctions.refreshPets()
 end
 
 -- Function to get farm center point
@@ -404,9 +407,12 @@ function PetFunctions.runAutoMiddleLoop()
         -- Skip excluded pets
         if not excludedPets[pet.id] then
             if allPetsSelected or selectedPets[pet.id] then
-                local distance = (pet.mover.Position - farmCenterPoint).Magnitude
-                if distance > RADIUS then
-                    PetFunctions.setPetState(pet.id, "Idle")
+                -- Only process pets with physical presence (mover)
+                if pet.mover then
+                    local distance = (pet.mover.Position - farmCenterPoint).Magnitude
+                    if distance > RADIUS then
+                        PetFunctions.setPetState(pet.id, "Idle")
+                    end
                 end
             end
         end
@@ -535,9 +541,6 @@ function PetFunctions.cleanup()
         end
     end
     excludedPetESPs = {}
-    
-    -- Clear name database
-    petNameDatabase = {}
 end
 
 -- Function to select all pets
@@ -550,7 +553,7 @@ function PetFunctions.selectAllPets()
     end
 end
 
--- Function to update dropdown options (now with actual pet names)
+-- Function to update dropdown options
 function PetFunctions.updateDropdownOptions()
     local pets = PetFunctions.getAllPets()
     currentPetsList = {}
@@ -558,8 +561,8 @@ function PetFunctions.updateDropdownOptions()
     
     for i, pet in pairs(pets) do
         local shortId = string.sub(tostring(pet.id), 1, 8)
-        -- Use actual pet name if available, otherwise fall back to ID
-        local displayName = pet.name .. " (" .. shortId .. "...)"
+        local petName = pet.name or "Pet"
+        local displayName = petName .. " (" .. shortId .. "...)"
         table.insert(dropdownOptions, displayName)
         currentPetsList[displayName] = pet
     end
@@ -570,11 +573,16 @@ function PetFunctions.updateDropdownOptions()
     end
 end
 
--- Function to refresh pets (basic version without name detection)
+-- Function to refresh pets
 function PetFunctions.refreshPets()
     selectedPets = {}
     allPetsSelected = false
     petsFolder = PetFunctions.findPetsFolder()
+    
+    -- Refresh Active Pets UI first
+    PetFunctions.refreshActivePetsUI()
+    task.wait(0.1)
+    
     local pets = PetFunctions.getAllPets()
     PetFunctions.updateDropdownOptions()
     return pets
@@ -624,16 +632,6 @@ function PetFunctions.getExcludedPetIds()
     return ids
 end
 
--- Function to get pet name database
-function PetFunctions.getPetNameDatabase()
-    return petNameDatabase
-end
-
--- Function to manually trigger name detection
-function PetFunctions.detectPetNames()
-    return PetFunctions.refreshPetsWithNameDetection()
-end
-
 -- Getters and Setters
 function PetFunctions.setAutoMiddleEnabled(enabled)
     autoMiddleEnabled = enabled
@@ -676,13 +674,10 @@ function PetFunctions.setExcludedPets(pets)
     excludedPets = pets
 end
 
--- Initialize Pet Services
-initializePetServices()
-
--- Initialize the system with auto refresh (using name detection)
+-- Initialize the system with auto refresh
 task.spawn(function()
     task.wait(1) -- Wait a moment for everything to load
-    PetFunctions.refreshPetsWithNameDetection()
+    PetFunctions.refreshPets()
     PetFunctions.updatePetCount()
 end)
 
@@ -692,8 +687,7 @@ PetFunctions.updateDropdownOptions()
 _G.updateDropdownOptions = PetFunctions.updateDropdownOptions
 _G.refreshPets = PetFunctions.refreshPets
 _G.refreshPetsWithEquipCycle = PetFunctions.refreshPetsWithEquipCycle
-_G.refreshPetsWithNameDetection = PetFunctions.refreshPetsWithNameDetection
-_G.detectPetNames = PetFunctions.detectPetNames
+_G.refreshActivePetsUI = PetFunctions.refreshActivePetsUI
 _G.isPetExcluded = PetFunctions.isPetExcluded
 _G.getExcludedPetCount = PetFunctions.getExcludedPetCount
 _G.getExcludedPetIds = PetFunctions.getExcludedPetIds
