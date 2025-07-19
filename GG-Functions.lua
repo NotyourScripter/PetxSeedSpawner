@@ -66,18 +66,38 @@ local autoBuyMerchantEnabled = false
 local zenBuyConnection = nil
 local merchantBuyConnection = nil
 
--- Remote Events
-local BuyEventShopStock = ReplicatedStorage.GameEvents.BuyEventShopStock
-local BuyTravelingMerchantShopStock = ReplicatedStorage.GameEvents.BuyTravelingMerchantShopStock
-local DeleteObject = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("DeleteObject")
-local RemoveItem = ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("Remove_Item")
-local ActivePetService = ReplicatedStorage.GameEvents.ActivePetService
-local PetZoneAbility = ReplicatedStorage.GameEvents.PetZoneAbility
+-- Remote Events with error handling
+local function getRemoteEvent(path)
+    local success, result = pcall(function()
+        return ReplicatedStorage:WaitForChild(path, 5)
+    end)
+    return success and result or nil
+end
 
--- Core folders/scripts
-local shovelClient = player:WaitForChild("PlayerScripts"):WaitForChild("Shovel_Client")
-local shovelPrompt = player:WaitForChild("PlayerGui"):WaitForChild("ShovelPrompt")
-local objectsFolder = Workspace:WaitForChild("Farm"):WaitForChild("Farm"):WaitForChild("Important"):WaitForChild("Objects_Physical")
+local BuyEventShopStock = getRemoteEvent("GameEvents") and getRemoteEvent("GameEvents").BuyEventShopStock
+local BuyTravelingMerchantShopStock = getRemoteEvent("GameEvents") and getRemoteEvent("GameEvents").BuyTravelingMerchantShopStock
+local DeleteObject = getRemoteEvent("GameEvents") and getRemoteEvent("GameEvents").DeleteObject
+local RemoveItem = getRemoteEvent("GameEvents") and getRemoteEvent("GameEvents").Remove_Item
+local ActivePetService = getRemoteEvent("GameEvents") and getRemoteEvent("GameEvents").ActivePetService
+local PetZoneAbility = getRemoteEvent("GameEvents") and getRemoteEvent("GameEvents").PetZoneAbility
+
+-- Core folders/scripts with error handling
+local shovelClient = nil
+local shovelPrompt = nil
+local objectsFolder = nil
+
+-- Initialize core objects safely
+pcall(function()
+    shovelClient = player:WaitForChild("PlayerScripts", 5):WaitForChild("Shovel_Client", 5)
+end)
+
+pcall(function()
+    shovelPrompt = player:WaitForChild("PlayerGui", 5):WaitForChild("ShovelPrompt", 5)
+end)
+
+pcall(function()
+    objectsFolder = Workspace:WaitForChild("Farm", 5):WaitForChild("Farm", 5):WaitForChild("Important", 5):WaitForChild("Objects_Physical", 5)
+end)
 
 -- Auto-buy functions with proper connection management
 function Functions.toggleAutoBuyZen(enabled)
@@ -120,6 +140,7 @@ end
 
 -- Function to buy all zen items
 function Functions.buyAllZenItems()
+    if not BuyEventShopStock then return end
     for _, item in pairs(zenItems) do
         pcall(function()
             BuyEventShopStock:FireServer(item)
@@ -129,6 +150,7 @@ end
 
 -- Function to buy all merchant items
 function Functions.buyAllMerchantItems()
+    if not BuyTravelingMerchantShopStock then return end
     for _, item in pairs(merchantItems) do
         pcall(function()
             BuyTravelingMerchantShopStock:FireServer(item)
@@ -138,6 +160,7 @@ end
 
 -- Equip Shovel function
 function Functions.autoEquipShovel()
+    if not player.Character then return end
     local backpack = player:FindFirstChild("Backpack")
     local shovel = backpack and backpack:FindFirstChild(shovelName)
     if shovel then
@@ -146,7 +169,6 @@ function Functions.autoEquipShovel()
 end
 
 -- Sprinklers 
-
 function Functions.deleteSprinklers(sprinklerArray, OrionLib)
     local targetSprinklers = sprinklerArray or selectedSprinklers
     
@@ -165,7 +187,33 @@ function Functions.deleteSprinklers(sprinklerArray, OrionLib)
     Functions.autoEquipShovel()
     task.wait(0.5)
 
-    local destroyEnv = getsenv(shovelClient)
+    -- Check if shovelClient and objectsFolder exist
+    if not shovelClient or not objectsFolder then
+        if OrionLib then
+            OrionLib:MakeNotification({
+                Name = "Error",
+                Content = "Required objects not found.",
+                Time = 3
+            })
+        end
+        return
+    end
+
+    local success, destroyEnv = pcall(function()
+        return getsenv and getsenv(shovelClient) or nil
+    end)
+    
+    if not success or not destroyEnv then
+        if OrionLib then
+            OrionLib:MakeNotification({
+                Name = "Error",
+                Content = "Could not access shovel environment.",
+                Time = 3
+            })
+        end
+        return
+    end
+
     local deletedCount = 0
     local deletedTypes = {}
 
@@ -178,16 +226,31 @@ function Functions.deleteSprinklers(sprinklerArray, OrionLib)
                 end
                 deletedTypes[typeName] = deletedTypes[typeName] + 1
                 
-                -- Destroy the object
-                if typeof(destroyEnv.Destroy) == "function" then
-                    destroyEnv.Destroy(obj)
-                end
-                DeleteObject:FireServer(obj)
-                RemoveItem:FireServer(obj)
+                -- Destroy the object safely
+                pcall(function()
+                    if destroyEnv and destroyEnv.Destroy and typeof(destroyEnv.Destroy) == "function" then
+                        destroyEnv.Destroy(obj)
+                    end
+                    if DeleteObject then
+                        DeleteObject:FireServer(obj)
+                    end
+                    if RemoveItem then
+                        RemoveItem:FireServer(obj)
+                    end
+                end)
                 deletedCount = deletedCount + 1
             end
         end
     end
+
+    if OrionLib then
+        OrionLib:MakeNotification({
+            Name = "Sprinklers Deleted",
+            Content = string.format("Deleted %d sprinklers", deletedCount),
+            Time = 3
+        })
+    end
+end
 
 -- Enhanced helper functions for sprinkler selection
 function Functions.getSprinklerTypes()
@@ -250,7 +313,6 @@ function Functions.getSelectedSprinklersString()
     return #selectionText > 50 and (selectionText:sub(1, 47) .. "...") or selectionText
 end
 
-
 -- Remove Farms function
 function Functions.removeFarms(OrionLib)
     local farmFolder = Workspace:FindFirstChild("Farm")
@@ -296,7 +358,9 @@ function Functions.removeFarms(OrionLib)
 
     for _, farm in ipairs(farmFolder:GetChildren()) do
         if farm ~= currentFarm then
-            farm:Destroy()
+            pcall(function()
+                farm:Destroy()
+            end)
         end
     end
 
@@ -364,38 +428,46 @@ function Functions.createESPMarker(pet)
         return -- ESP already exists
     end
     
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "ExcludedPetESP"
-    billboard.Adornee = pet.mover
-    billboard.Size = UDim2.new(0, 50, 0, 50)
-    billboard.StudsOffset = Vector3.new(0, 2, 0)
-    billboard.LightInfluence = 0
-    billboard.AlwaysOnTop = true
+    local success, billboard = pcall(function()
+        local billboard = Instance.new("BillboardGui")
+        billboard.Name = "ExcludedPetESP"
+        billboard.Adornee = pet.mover
+        billboard.Size = UDim2.new(0, 50, 0, 50)
+        billboard.StudsOffset = Vector3.new(0, 2, 0)
+        billboard.LightInfluence = 0
+        billboard.AlwaysOnTop = true
+        
+        local frame = Instance.new("Frame")
+        frame.Size = UDim2.new(1, 0, 1, 0)
+        frame.BackgroundTransparency = 1
+        frame.Parent = billboard
+        
+        local textLabel = Instance.new("TextLabel")
+        textLabel.Size = UDim2.new(1, 0, 1, 0)
+        textLabel.BackgroundTransparency = 1
+        textLabel.Text = "X"
+        textLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+        textLabel.TextScaled = true
+        textLabel.Font = Enum.Font.SourceSansBold
+        textLabel.TextStrokeTransparency = 0
+        textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+        textLabel.Parent = frame
+        
+        billboard.Parent = pet.mover
+        return billboard
+    end)
     
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(1, 0, 1, 0)
-    frame.BackgroundTransparency = 1
-    frame.Parent = billboard
-    
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.Text = "X"
-    textLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-    textLabel.TextScaled = true
-    textLabel.Font = Enum.Font.SourceSansBold
-    textLabel.TextStrokeTransparency = 0
-    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
-    textLabel.Parent = frame
-    
-    billboard.Parent = pet.mover
-    excludedPetESPs[pet.id] = billboard
+    if success and billboard then
+        excludedPetESPs[pet.id] = billboard
+    end
 end
 
 -- Function to remove ESP marker
 function Functions.removeESPMarker(petId)
     if excludedPetESPs[petId] then
-        excludedPetESPs[petId]:Destroy()
+        pcall(function()
+            excludedPetESPs[petId]:Destroy()
+        end)
         excludedPetESPs[petId] = nil
     end
 end
@@ -510,6 +582,7 @@ end
 
 -- Function to set pet state
 function Functions.setPetState(petId, state)
+    if not ActivePetService then return end
     local formattedPetId = Functions.formatPetIdToUUID(petId)
     pcall(function()
         ActivePetService:FireServer("SetPetState", formattedPetId, state)
@@ -594,27 +667,33 @@ end
 
 -- Function to reduce lag
 function Functions.reduceLag()
-    repeat
-        local lag = game.Workspace:findFirstChild("Lag", true)
-        if (lag ~= nil) then
-            lag:remove()
-        end
-        wait()
-    until (game.Workspace:findFirstChild("Lag", true) == nil)
+    pcall(function()
+        repeat
+            local lag = game.Workspace:findFirstChild("Lag", true)
+            if (lag ~= nil) then
+                lag:remove()
+            end
+            wait(0.1) -- Add small delay to prevent infinite tight loop
+        until (game.Workspace:findFirstChild("Lag", true) == nil)
+    end)
 end
 
 -- Function to fade in main tab
 function Functions.fadeInMainTab()
-    local screenGui = player:WaitForChild("PlayerGui"):WaitForChild("Orion")
-    local mainFrame = screenGui:WaitForChild("Main")
-    mainFrame.BackgroundTransparency = 1
+    pcall(function()
+        local screenGui = player:WaitForChild("PlayerGui", 5):WaitForChild("Orion", 5)
+        local mainFrame = screenGui:WaitForChild("Main", 5)
+        if mainFrame then
+            mainFrame.BackgroundTransparency = 1
 
-    local tween = TweenService:Create(
-        mainFrame,
-        TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-        { BackgroundTransparency = 0.2 }
-    )
-    tween:Play()
+            local tween = TweenService:Create(
+                mainFrame,
+                TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+                { BackgroundTransparency = 0.2 }
+            )
+            tween:Play()
+        end
+    end)
 end
 
 -- Server hopping function
@@ -624,8 +703,10 @@ function Functions.serverHop()
             return game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100")
         end)
         if success then
-            local decoded = HttpService:JSONDecode(result)
-            if decoded and decoded.data then
+            local success2, decoded = pcall(function()
+                return HttpService:JSONDecode(result)
+            end)
+            if success2 and decoded and decoded.data then
                 for _, server in ipairs(decoded.data) do
                     if server.playing < server.maxPlayers and server.id ~= game.JobId then
                         return server.id, server.playing
@@ -646,18 +727,20 @@ end
 
 -- Function to copy Discord link
 function Functions.copyDiscordLink()
-    if setclipboard then
-        setclipboard("https://discord.gg/yura") -- Replace with actual Discord link
-        if _G.OrionLib then
-            _G.OrionLib:MakeNotification({
-                Name = "Discord Link Copied",
-                Content = "Discord link copied to clipboard!",
-                Time = 3
-            })
+    pcall(function()
+        if setclipboard then
+            setclipboard("https://discord.gg/yura") -- Replace with actual Discord link
+            if _G.OrionLib then
+                _G.OrionLib:MakeNotification({
+                    Name = "Discord Link Copied",
+                    Content = "Discord link copied to clipboard!",
+                    Time = 3
+                })
+            end
+        else
+            warn("Clipboard access not available.")
         end
-    else
-        warn("Clipboard access not available.")
-    end
+    end)
 end
 
 -- Cleanup function
@@ -675,7 +758,9 @@ function Functions.cleanup()
     -- Clean up ESP markers
     for petId, esp in pairs(excludedPetESPs) do
         if esp then
-            esp:Destroy()
+            pcall(function()
+                esp:Destroy()
+            end)
         end
     end
     excludedPetESPs = {}
