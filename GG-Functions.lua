@@ -145,6 +145,8 @@ function Functions.autoEquipShovel()
     end
 end
 
+-- Sprinklers 
+
 local function getSprinklerTypes()
     return sprinklerTypes
 end
@@ -153,13 +155,14 @@ local function addSprinklerToSelection(sprinklerName)
     -- Check if sprinkler is already in the array
     for i, sprinkler in ipairs(selectedSprinklers) do
         if sprinkler == sprinklerName then
-            return -- Already exists, don't add duplicate
+            return false -- Already exists, don't add duplicate
         end
     end
     -- Add to array
     table.insert(selectedSprinklers, sprinklerName)
     print("Added to selection:", sprinklerName)
     print("Current selection array:", selectedSprinklers)
+    return true
 end
 
 local function removeSprinklerFromSelection(sprinklerName)
@@ -169,9 +172,10 @@ local function removeSprinklerFromSelection(sprinklerName)
             table.remove(selectedSprinklers, i)
             print("Removed from selection:", sprinklerName)
             print("Current selection array:", selectedSprinklers)
-            return
+            return true
         end
     end
+    return false
 end
 
 local function setSelectedSprinklers(sprinklerArray)
