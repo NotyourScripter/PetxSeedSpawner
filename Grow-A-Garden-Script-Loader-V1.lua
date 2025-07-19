@@ -225,31 +225,52 @@ local Tab = Window:MakeTab({
 -- Sprinkler Section
 Tab:AddParagraph("Shovel Sprikler", "Inf. Sprinkler Glitch")
 
--- Dropdown for single sprinkler type
--- Method 3: Multi-Select Dropdown (if your UI library supports it)
-Tab:AddButton({
-    Name = "Multi-Select Sprinklers",
-    Callback = function()
-        -- This would open a custom multi-select interface
-        -- For now, we'll use a simple text input approach
-        local input = "Basic Sprinkler,Advanced Sprinkler" -- Example
-        -- In a real implementation, you'd get this from user input
+local sprinklerDropdown = Tab:AddDropdown({
+    Name = "Select Sprinklers to Delete",
+    Default = {},
+    Options = (function()
+        local options = {"None"}
+        for _, sprinklerType in ipairs(getSprinklerTypes()) do
+            table.insert(options, sprinklerType)
+        end
+        return options
+    end)(),
+    Callback = function(selectedValues)
+        -- Clear all previous selections
+        clearSelectedSprinklers()
         
-        -- Parse comma-separated input
-        local sprinklers = {}
-        for sprinkler in string.gmatch(input, "([^,]+)") do
-            local trimmed = sprinkler:match("^%s*(.-)%s*$") -- Trim whitespace
-            if trimmed ~= "" then
-                table.insert(sprinklers, trimmed)
+        -- Handle the selected values (array of sprinkler names)
+        if selectedValues and #selectedValues > 0 then
+            -- Check if "None" is selected
+            local hasNone = false
+            for _, value in pairs(selectedValues) do
+                if value == "None" then
+                    hasNone = true
+                    break
+                end
+            end
+            
+            if not hasNone then
+                -- Add all selected sprinklers to selection
+                for _, sprinklerName in pairs(selectedValues) do
+                    addSprinklerToSelection(sprinklerName)
+                end
+                
+                -- Show notification of selection
+                local selectionText = table.concat(selectedSprinklers, ", ")
+                OrionLib:MakeNotification({
+                    Name = "Selection Updated",
+                    Content = string.format("Selected (%d): %s", #selectedSprinklers, selectionText),
+                    Time = 3
+                })
+            else
+                OrionLib:MakeNotification({
+                    Name = "Selection Cleared",
+                    Content = "No sprinklers selected",
+                    Time = 2
+                })
             end
         end
-        
-        setSelectedSprinklers(sprinklers)
-        OrionLib:MakeNotification({
-            Name = "Multi-Selection Set",
-            Content = string.format("Selected %d sprinkler types", #sprinklers),
-            Time = 3
-        })
     end
 })
 
@@ -277,24 +298,6 @@ Tab:AddToggle({
     end
 })
 
--- Toggle for Select All Sprinklers
-Tab:AddToggle({
-	Name = "Select All Sprinklers",
-	Default = false,
-	Callback = function(Value)
-		if Value then
-			setSelectedSprinklers(sprinklerTypes)
-			OrionLib:MakeNotification({
-				Name = "All Selected",
-				Content = "All sprinkler types selected.",
-				Time = 3
-			})
-		else
-			setSelectedSprinklers({})
-		end
-	end
-})
-
 Tab:AddButton({
     Name = "Delete ALL Sprinklers",
     Callback = function()
@@ -313,29 +316,23 @@ Tab:AddButton({
 
 -- Delete Button
 Tab:AddButton({
-	Name = "Delete Sprinkler",
-	    Callback = function()
+    Name = "Delete Selected Sprinklers",
+    Callback = function()
         local selectedArray = getSelectedSprinklers()
         print("Delete button clicked - Current selection array:", selectedArray)
         
         if #selectedArray == 0 then
             OrionLib:MakeNotification({
                 Name = "No Selection",
-                Content = "Please select sprinkler type(s) first",
-                Time = 3
+                Content = "Please select sprinkler type(s) first using the dropdown or toggle buttons above",
+                Time = 4
             })
             return
         end
-        
-        -- Auto equip shovel
-        autoEquipShovel()
+        autoEquipShovel(
         task.wait(0.5)
-        
-        -- Call the delete function with array format
         Functions.deleteSprinklers(selectedArray, OrionLib)
-        
-        -- Optional: Clear selection after deletion
-        -- clearSelectedSprinklers()
+        clearSelectedSprinklers() 
     end
 })
 
