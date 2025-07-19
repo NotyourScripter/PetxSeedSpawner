@@ -1,7 +1,7 @@
--- Main GAGSL Hub Script
+-- Main GAGSL Hub Script (FIXED)
 repeat task.wait() until game:IsLoaded()
 
-local CoreFunctions = loadstring(game:HttpGet("https://raw.githubusercontent.com/NotyourScripter/PetxSeedSpawner/refs/heads/main/GG-Functions.lua))()
+local CoreFunctions = loadstring(game:HttpGet("https://raw.githubusercontent.com/NotyourScripter/PetxSeedSpawner/refs/heads/main/GG-Functions.lua"))()
 
 local PetFunctions = loadstring(game:HttpGet("https://raw.githubusercontent.com/NotyourScripter/PetxSeedSpawner/refs/heads/main/PFunctions.lua"))()
 
@@ -12,6 +12,22 @@ local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
+
+-- Pet Control Variables (Initialize from PetFunctions)
+local selectedPets = {}
+local excludedPets = {}
+local excludedPetESPs = {}
+local allPetsSelected = false
+local autoMiddleEnabled = false
+local currentPetsList = {}
+local petCountLabel = nil
+local petDropdown = nil
+local sprinklerTypes = {"Basic Sprinkler", "Advanced Sprinkler", "Master Sprinkler", "Godly Sprinkler", "Honey Sprinkler", "Chocolate Sprinkler"}
+local selectedSprinklers = {}
+
+-- Auto-buy variables
+local autoBuyEnabled = false
+local buyConnection = nil
 
 -- Orion UI
 local Window = OrionLib:MakeWindow({
@@ -36,6 +52,77 @@ local function fadeInMainTab()
 end
 
 task.delay(1.5, fadeInMainTab)
+
+-- Helper functions for sprinklers
+local function getSprinklerTypes()
+    return sprinklerTypes
+end
+
+local function setSelectedSprinklers(selected)
+    selectedSprinklers = selected
+end
+
+local function getSelectedSprinklers()
+    return selectedSprinklers
+end
+
+-- Helper functions for pets
+local function refreshPets()
+    return PetFunctions.refreshPets()
+end
+
+local function updatePetCount()
+    PetFunctions.updatePetCount()
+end
+
+local function selectAllPets()
+    PetFunctions.selectAllPets()
+    allPetsSelected = true
+end
+
+local function createESPMarker(pet)
+    PetFunctions.createESPMarker(pet)
+end
+
+local function removeESPMarker(petId)
+    PetFunctions.removeESPMarker(petId)
+end
+
+local function autoEquipShovel()
+    CoreFunctions.autoEquipShovel()
+end
+
+local function deleteSprinklers()
+    CoreFunctions.deleteSprinklers(selectedSprinklers, OrionLib)
+end
+
+local function setupZoneAbilityListener()
+    PetFunctions.setupZoneAbilityListener()
+end
+
+local function startInitialLoop()
+    PetFunctions.startInitialLoop()
+end
+
+local function cleanup()
+    PetFunctions.cleanup()
+    if buyConnection then
+        buyConnection:Disconnect()
+        buyConnection = nil
+    end
+end
+
+local function buyAllZenItems()
+    CoreFunctions.buyAllZenItems()
+end
+
+local function buyAllMerchantItems()
+    CoreFunctions.buyAllMerchantItems()
+end
+
+local function removeFarms()
+    CoreFunctions.removeFarms(OrionLib)
+end
 
 -- New Tab: Tools
 local ToolsTab = Window:MakeTab({
@@ -142,9 +229,9 @@ Tab:AddParagraph("Shovel Sprikler", "Inf. Sprinkler Glitch")
 Tab:AddDropdown({
 	Name = "Sprinkler Type",
 	Default = "Select your Sprinkler",
-	Options = CoreFunctions.getSprinklerTypes(),
+	Options = getSprinklerTypes(),
 	Callback = function(selected)
-		CoreFunctions.setSelectedSprinklers({selected})
+		setSelectedSprinklers({selected})
 	end
 })
 
@@ -152,8 +239,8 @@ Tab:AddDropdown({
 Tab:AddButton({
 	Name = "Refresh Sprinklers",
 	Callback = function()
-		local selectedSprinklers = CoreFunctions.getSelectedSprinklers()
-		if #selectedSprinklers == 0 then
+		local selectedSprinklersList = getSelectedSprinklers()
+		if #selectedSprinklersList == 0 then
 			OrionLib:MakeNotification({
 				Name = "No Selection",
 				Content = "No sprinkler types selected to refresh.",
@@ -169,7 +256,7 @@ Tab:AddButton({
 		
 		local destroyEnv = getsenv(shovelClient)
 		for _, obj in ipairs(objectsFolder:GetChildren()) do
-			for _, typeName in ipairs(selectedSprinklers) do
+			for _, typeName in ipairs(selectedSprinklersList) do
 				if string.find(obj.Name, typeName) then
 					if typeof(destroyEnv.Destroy) == "function" then
 						destroyEnv.Destroy(obj)
@@ -180,7 +267,7 @@ Tab:AddButton({
 			end
 		end
 
-		CoreFunctions.setSelectedSprinklers({})
+		setSelectedSprinklers({})
 		OrionLib:MakeNotification({
 			Name = "Refreshed",
 			Content = "Selected sprinklers removed and selection cleared.",
@@ -195,14 +282,14 @@ Tab:AddToggle({
 	Default = false,
 	Callback = function(Value)
 		if Value then
-			selectedSprinklers = sprinklerTypes
+			setSelectedSprinklers(sprinklerTypes)
 			OrionLib:MakeNotification({
 				Name = "All Selected",
 				Content = "All sprinkler types selected.",
 				Time = 3
 			})
 		else
-			selectedSprinklers = {}
+			setSelectedSprinklers({})
 		end
 	end
 })
@@ -225,6 +312,9 @@ local initialPets = refreshPets()
 
 petCountLabel = Tab:AddLabel("Pets Found: 0 | Selected: 0 | Excluded: 0")
 
+-- Set the label in PetFunctions
+PetFunctions.setPetCountLabel(petCountLabel)
+
 -- Update pet count initially and periodically
 updatePetCount()
 
@@ -241,6 +331,10 @@ petDropdown = Tab:AddDropdown({
     Default = {}, -- Start with no exclusions
     Options = {"None"},
     Callback = function(selectedValues)
+        -- Get current pets and excluded pets from PetFunctions
+        excludedPets = PetFunctions.getExcludedPets()
+        currentPetsList = PetFunctions.getCurrentPetsList()
+        
         -- Clear all previous exclusions
         for petId, _ in pairs(excludedPets) do
             removeESPMarker(petId)
@@ -270,6 +364,8 @@ petDropdown = Tab:AddDropdown({
             end
         end
         
+        -- Update excluded pets in PetFunctions
+        PetFunctions.setExcludedPets(excludedPets)
         updatePetCount()
         
         -- Show notification about exclusions
@@ -288,6 +384,9 @@ petDropdown = Tab:AddDropdown({
         end
     end
 })
+
+-- Set the dropdown in PetFunctions
+PetFunctions.setPetDropdown(petDropdown)
 
 -- Combined Refresh and Auto Select All Button
 Tab:AddButton({
@@ -320,6 +419,7 @@ Tab:AddToggle({
     Default = false,
     Callback = function(value)
         autoMiddleEnabled = value
+        PetFunctions.setAutoMiddleEnabled(value)
         if value then
             setupZoneAbilityListener()
             startInitialLoop()
@@ -346,7 +446,7 @@ ShopTab:AddToggle({
             -- Start auto buying
             buyConnection = RunService.Heartbeat:Connect(function()
                 buyAllZenItems()
-                wait(0.1) -- Small delay to prevent spam
+                task.wait(0.1) -- Small delay to prevent spam
             end)
             
             OrionLib:MakeNotification({
@@ -375,11 +475,11 @@ ShopTab:AddToggle({
             -- Start auto buying
             buyConnection = RunService.Heartbeat:Connect(function()
                 buyAllMerchantItems()
-                wait(0.1) -- Small delay to prevent spam
+                task.wait(0.1) -- Small delay to prevent spam
             end)
 
             OrionLib:MakeNotification({
-                Name = "Auto Buy Zen",
+                Name = "Auto Buy Traveling Merchant",
                 Content = "Auto Buy Traveling Merchant enabled!",
                 Image = "rbxassetid://4483345998",
                 Time = 2
