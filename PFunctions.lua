@@ -1,5 +1,5 @@
--- Enhanced Pet Functions Module with Proper Name Detection
--- This module contains all pet-related functionality with improved name detection
+-- Enhanced Pet Functions Module with Fast Unequip/Re-equip
+-- This module contains all pet-related functionality with improved name detection and fast refresh
 
 local PetFunctions = {}
 
@@ -17,9 +17,14 @@ local ZONE_ABILITY_DELAY = 3
 local ZONE_ABILITY_LOOP_TIME = 3
 local AUTO_LOOP_INTERVAL = 240 -- 4 minutes in seconds
 
+-- Fast refresh configuration
+local FAST_UNEQUIP_DELAY = 0.01 -- Minimal delay between unequips
+local FAST_EQUIP_DELAY = 0.01   -- Minimal delay between equips
+local BATCH_SIZE = 10           -- Process pets in batches for better performance
+
 -- Pet Control Services
 local ActivePetService = ReplicatedStorage.GameEvents.ActivePetService
-local PetsService = ReplicatedStorage.GameEvents.PetsService -- New service for equip/unequip
+local PetsService = ReplicatedStorage.GameEvents.PetsService -- Service for equip/unequip
 local PetZoneAbility = ReplicatedStorage.GameEvents.PetZoneAbility
 local Notification = ReplicatedStorage.GameEvents.Notification
 
@@ -40,6 +45,7 @@ local petCountLabel = nil
 local petDropdown = nil
 local currentPetsList = {}
 local lastZoneAbilityTime = 0 -- Track last zone ability time
+local isRefreshing = false -- Prevent multiple simultaneous refreshes
 
 -- Cache for pet names to avoid repeated lookups
 local petNameCache = {}
@@ -70,6 +76,22 @@ function PetFunctions.findPetsFolder()
     end
     
     return nil
+end
+
+-- Function to get all pet tools from backpack
+function PetFunctions.getAllPetToolsFromBackpack()
+    local player = Players.LocalPlayer
+    if not player or not player.Backpack then return {} end
+    
+    local petTools = {}
+    
+    for _, tool in pairs(player.Backpack:GetChildren()) do
+        if tool:IsA("Tool") and (tool:FindFirstChild("PetToolLocal") or tool:FindFirstChild("PetToolServer")) then
+            table.insert(petTools, tool)
+        end
+    end
+    
+    return petTools
 end
 
 -- Function to get all pet names from backpack tools
@@ -353,6 +375,209 @@ function PetFunctions.setPetState(petId, state)
     end)
 end
 
+-- Function to unequip pet (fastest method)
+function PetFunctions.unequipPet(petTool)
+    if not petTool or not petTool.Parent then return false end
+    
+    local success = pcall(function()
+        -- Try multiple methods for maximum compatibility
+        if PetsService then
+            PetsService:FireServer("UnequipPet", petTool.Name)
+        end
+        
+        -- Also try direct tool removal
+        if petTool.Parent == Players.LocalPlayer.Character then
+            petTool.Parent = Players.LocalPlayer.Backpack
+        end
+        
+        -- Additional unequip methods
+        if petTool:FindFirstChild("Handle") then
+            petTool.Handle.CanTouch = false
+        end
+        
+        -- Fire unequip event if it exists
+        local unequipEvent = petTool:FindFirstChild("Unequip") or petTool:FindFirstChild("UnequipEvent")
+        if unequipEvent and unequipEvent:IsA("RemoteEvent") then
+            unequipEvent:FireServer()
+        end
+    end)
+    
+    return success
+end
+
+-- Function to equip pet (fastest method)
+function PetFunctions.equipPet(petTool)
+    if not petTool or not petTool.Parent then return false end
+    
+    local success = pcall(function()
+        local player = Players.LocalPlayer
+        if not player or not player.Character then return end
+        
+        -- Try multiple methods for maximum compatibility
+        if PetsService then
+            PetsService:FireServer("EquipPet", petTool.Name)
+        end
+        
+        -- Also try direct tool equipping
+        if petTool.Parent == player.Backpack then
+            player.Character.Humanoid:EquipTool(petTool)
+        end
+        
+        -- Additional equip methods
+        if petTool:FindFirstChild("Handle") then
+            petTool.Handle.CanTouch = true
+        end
+        
+        -- Fire equip event if it exists
+        local equipEvent = petTool:FindFirstChild("Equip") or petTool:FindFirstChild("EquipEvent")
+        if equipEvent and equipEvent:IsA("RemoteEvent") then
+            equipEvent:FireServer()
+        end
+    end)
+    
+    return success
+end
+
+-- Fast batch unequip function
+function PetFunctions.fastUnequipAllPets()
+    local petTools = PetFunctions.getAllPetToolsFromBackpack()
+    local player = Players.LocalPlayer
+    
+    if not player or not player.Character then return false end
+    
+    print("Fast unequipping " .. #petTools .. " pets...")
+    
+    -- Unequip all pets in batches for better performance
+    for i = 1, #petTools, BATCH_SIZE do
+        local batch = {}
+        for j = i, math.min(i + BATCH_SIZE - 1, #petTools) do
+            table.insert(batch, petTools[j])
+        end
+        
+        -- Process batch
+        for _, petTool in pairs(batch) do
+            spawn(function()
+                PetFunctions.unequipPet(petTool)
+            end)
+        end
+        
+        -- Small delay between batches
+        if i + BATCH_SIZE - 1 < #petTools then
+            task.wait(FAST_UNEQUIP_DELAY)
+        end
+    end
+    
+    print("Fast unequip completed!")
+    return true
+end
+
+-- Fast batch equip function
+function PetFunctions.fastEquipAllPets()
+    task.wait(0.1) -- Brief pause to ensure unequip is complete
+    
+    local petTools = PetFunctions.getAllPetToolsFromBackpack()
+    local player = Players.LocalPlayer
+    
+    if not player or not player.Character then return false end
+    
+    print("Fast equipping " .. #petTools .. " pets...")
+    
+    -- Equip all pets in batches for better performance
+    for i = 1, #petTools, BATCH_SIZE do
+        local batch = {}
+        for j = i, math.min(i + BATCH_SIZE - 1, #petTools) do
+            table.insert(batch, petTools[j])
+        end
+        
+        -- Process batch
+        for _, petTool in pairs(batch) do
+            spawn(function()
+                PetFunctions.equipPet(petTool)
+            end)
+        end
+        
+        -- Small delay between batches
+        if i + BATCH_SIZE - 1 < #petTools then
+            task.wait(FAST_EQUIP_DELAY)
+        end
+    end
+    
+    print("Fast equip completed!")
+    return true
+end
+
+-- Enhanced refresh pets function with fast unequip/re-equip
+function PetFunctions.refreshPets()
+    if isRefreshing then
+        print("Refresh already in progress, please wait...")
+        return {}
+    end
+    
+    isRefreshing = true
+    print("Starting fast pet refresh...")
+    
+    -- Store current selections
+    local previouslySelected = {}
+    for petId, _ in pairs(selectedPets) do
+        previouslySelected[petId] = true
+    end
+    local wasAllSelected = allPetsSelected
+    
+    -- Reset selections temporarily
+    selectedPets = {}
+    allPetsSelected = false
+    
+    local success = true
+    
+    -- Step 1: Fast unequip all pets
+    if not PetFunctions.fastUnequipAllPets() then
+        print("Warning: Fast unequip may have failed")
+        success = false
+    end
+    
+    -- Step 2: Wait a moment for server to process
+    task.wait(0.2)
+    
+    -- Step 3: Fast re-equip all pets
+    if not PetFunctions.fastEquipAllPets() then
+        print("Warning: Fast equip may have failed")
+        success = false
+    end
+    
+    -- Step 4: Wait for pets to fully load
+    task.wait(0.3)
+    
+    -- Step 5: Refresh pets folder and update data
+    petsFolder = PetFunctions.findPetsFolder()
+    local pets = PetFunctions.getAllPets()
+    
+    -- Step 6: Update dropdown and restore selections
+    PetFunctions.updateDropdownOptions()
+    
+    -- Restore previous selections if they still exist
+    if wasAllSelected then
+        PetFunctions.selectAllPets()
+    else
+        for _, pet in pairs(pets) do
+            if previouslySelected[pet.id] then
+                selectedPets[pet.id] = true
+            end
+        end
+    end
+    
+    PetFunctions.updatePetCount()
+    
+    isRefreshing = false
+    
+    if success then
+        print("Fast pet refresh completed successfully! Found " .. #pets .. " pets.")
+    else
+        print("Pet refresh completed with warnings. Found " .. #pets .. " pets.")
+    end
+    
+    return pets
+end
+
 -- Function to run the auto middle loop
 function PetFunctions.runAutoMiddleLoop()
     if not autoMiddleEnabled then return end
@@ -528,17 +753,6 @@ function PetFunctions.updateDropdownOptions()
     end
 end
 
--- Simple refresh pets function
-function PetFunctions.refreshPets()
-    selectedPets = {}
-    allPetsSelected = false
-    petsFolder = PetFunctions.findPetsFolder()
-    
-    local pets = PetFunctions.getAllPets()
-    PetFunctions.updateDropdownOptions()
-    return pets
-end
-
 -- Function to update pet count
 function PetFunctions.updatePetCount()
     local pets = PetFunctions.getAllPets()
@@ -589,6 +803,16 @@ function PetFunctions.refreshDropdownFromBackpack()
     PetFunctions.updateDropdownOptions()
     PetFunctions.updatePetCount()
     print("Dropdown refresh complete!")
+end
+
+-- Fast refresh function (alias for refreshPets)
+function PetFunctions.fastRefresh()
+    return PetFunctions.refreshPets()
+end
+
+-- Function to check if refresh is in progress
+function PetFunctions.isRefreshInProgress()
+    return isRefreshing
 end
 
 -- Getters and Setters
@@ -645,9 +869,11 @@ PetFunctions.updateDropdownOptions()
 -- Make functions available globally if needed
 _G.updateDropdownOptions = PetFunctions.updateDropdownOptions
 _G.refreshPets = PetFunctions.refreshPets
+_G.fastRefresh = PetFunctions.fastRefresh -- New fast refresh alias
 _G.isPetExcluded = PetFunctions.isPetExcluded
 _G.getExcludedPetCount = PetFunctions.getExcludedPetCount
 _G.getExcludedPetIds = PetFunctions.getExcludedPetIds
-_G.refreshDropdownFromBackpack = PetFunctions.refreshDropdownFromBackpack -- New global function
+_G.refreshDropdownFromBackpack = PetFunctions.refreshDropdownFromBackpack
+_G.isRefreshInProgress = PetFunctions.isRefreshInProgress -- New status function
 
 return PetFunctions
