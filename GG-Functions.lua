@@ -145,40 +145,56 @@ function Functions.autoEquipShovel()
     end
 end
 
--- Delete Sprinklers function
-function Functions.deleteSprinklers(selectedSprinklers, OrionLib)
-    if #selectedSprinklers == 0 then
-        if OrionLib then
-            OrionLib:MakeNotification({
-                Name = "No Selection",
-                Content = "No sprinkler types selected.",
-                Time = 3
-            })
-        end
-        return
-    end
+local function getSprinklerTypes()
+    return sprinklerTypes
+end
 
-    local destroyEnv = getsenv(shovelClient)
-
-    for _, obj in ipairs(objectsFolder:GetChildren()) do
-        for _, typeName in ipairs(selectedSprinklers) do
-            if obj.Name == typeName then
-                if typeof(destroyEnv.Destroy) == "function" then
-                    destroyEnv.Destroy(obj)
-                end
-                DeleteObject:FireServer(obj)
-                RemoveItem:FireServer(obj)
-            end
+local function addSprinklerToSelection(sprinklerName)
+    -- Check if sprinkler is already in the array
+    for i, sprinkler in ipairs(selectedSprinklers) do
+        if sprinkler == sprinklerName then
+            return -- Already exists, don't add duplicate
         end
     end
+    -- Add to array
+    table.insert(selectedSprinklers, sprinklerName)
+    print("Added to selection:", sprinklerName)
+    print("Current selection array:", selectedSprinklers)
+end
 
-    if OrionLib then
-        OrionLib:MakeNotification({
-            Name = "Done",
-            Content = "Selected sprinklers deleted.",
-            Time = 4
-        })
+local function removeSprinklerFromSelection(sprinklerName)
+    -- Find and remove from array
+    for i, sprinkler in ipairs(selectedSprinklers) do
+        if sprinkler == sprinklerName then
+            table.remove(selectedSprinklers, i)
+            print("Removed from selection:", sprinklerName)
+            print("Current selection array:", selectedSprinklers)
+            return
+        end
     end
+end
+
+local function setSelectedSprinklers(sprinklerArray)
+    selectedSprinklers = sprinklerArray or {}
+    print("Selection array set to:", selectedSprinklers)
+end
+
+local function getSelectedSprinklers()
+    return selectedSprinklers
+end
+
+local function clearSelectedSprinklers()
+    selectedSprinklers = {}
+    print("Selection array cleared")
+end
+
+local function isSprinklerSelected(sprinklerName)
+    for _, sprinkler in ipairs(selectedSprinklers) do
+        if sprinkler == sprinklerName then
+            return true
+        end
+    end
+    return false
 end
 
 -- Remove Farms function
