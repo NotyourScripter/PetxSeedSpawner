@@ -4,7 +4,7 @@ repeat task.wait() until game:IsLoaded()
 local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/YuraScripts/GrowAFilipinoy/refs/heads/main/TEST.lua"))()
 
 -- Load all functions from GitHub
-local Functions = loadstring(game:HttpGet("https://raw.githubusercontent.com/YourUsername/YourRepo/main/functions.lua"))()
+local Functions = loadstring(game:HttpGet("https://raw.githubusercontent.com/NotyourScripter/PetxSeedSpawner/refs/heads/main/GG-Functions.lua"))()
 
 -- Services
 local Players = game:GetService("Players")
