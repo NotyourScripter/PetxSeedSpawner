@@ -1,7 +1,7 @@
 repeat task.wait() until game:IsLoaded()
 
 -- OrionLib Loader (updated)
-local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/NotyourScripter/OrionLib/refs/heads/main/OrionLib.lua"))()
+local OrionLib = loadstring(game:HttpGet("https://raw.githubusercontent.com/YuraScripts/GrowAFilipinoy/refs/heads/main/TEST.lua"))()
 
 -- Services
 local Players = game:GetService("Players")
@@ -38,9 +38,23 @@ local zenItems = {
     "Zen Sand"
 }
 
+-- Items to auto-buy
+local merchantItems = {
+    "Star Caller",
+    "Night Staff",
+    "Bee Egg",
+    "Honey Sprinkler",
+    "Flower Seed Pack",
+    "Cloudtouched Spray",
+    "Mutation Spray Disco",
+    "Mutation Spray Verdant",
+    "Mutation Spray Windstruck",
+    "Mutation Spray Wet"
+}
+
 -- Pet Radius Control Configuration
-local RADIUS = 1
-local LOOP_DELAY = 0.1
+local RADIUS = 0.5
+local LOOP_DELAY = 1
 local INITIAL_LOOP_TIME = 5
 local ZONE_ABILITY_DELAY = 3
 local ZONE_ABILITY_LOOP_TIME = 3
@@ -83,6 +97,16 @@ local function buyAllZenItems()
     for _, item in pairs(zenItems) do
         pcall(function()
             BuyEventShopStock:FireServer(item)
+        end)
+    end
+end
+
+local function buyAllMerchantItems()
+    if not autoBuyEnabled then return end
+    
+    for _, item in pairs(merchantItems) do
+        pcall(function()
+            BuyTravelingMerchantShopStock:FireServer(item)
         end)
     end
 end
@@ -525,11 +549,78 @@ local function selectAllPets()
     end
 end
 
--- Function to update dropdown options
+-- Function to get all pets (unchanged from original)
+local function getAllPets()
+    local pets = {}
+    
+    local function processPetContainer(container)
+        local petMover = container:FindFirstChild("PetMover")
+        if petMover and petMover:IsA("BasePart") then
+            local petId = getPetIdFromPetMover(petMover)
+            if petId then
+                table.insert(pets, {
+                    id = petId,
+                    name = "Pet",
+                    model = container,
+                    mover = petMover,
+                    position = petMover.Position
+                })
+            end
+        end
+    end
+    
+    local function findStandalonePetMovers(parent)
+        for _, child in pairs(parent:GetChildren()) do
+            if child:IsA("Part") and child.Name == "PetMover" then
+                local petId = getPetIdFromPetMover(child)
+                if petId then
+                    table.insert(pets, {
+                        id = petId,
+                        name = "Pet",
+                        model = child.Parent,
+                        mover = child,
+                        position = child.Position
+                    })
+                end
+            elseif child:IsA("Model") or child:IsA("Folder") then
+                findStandalonePetMovers(child)
+            end
+        end
+    end
+    
+    if not petsFolder then
+        petsFolder = findPetsFolder()
+    end
+    
+    if petsFolder then
+        if petsFolder.Name == "PetsPhysical" then
+            local petMoverFolder = petsFolder:FindFirstChild("PetMover")
+            if petMoverFolder then
+                for _, petContainer in pairs(petMoverFolder:GetChildren()) do
+                    if petContainer:IsA("Model") and isValidUUID(petContainer.Name) then
+                        processPetContainer(petContainer)
+                    end
+                end
+            end
+        else
+            for _, child in pairs(petsFolder:GetChildren()) do
+                if child:IsA("Model") then
+                    processPetContainer(child)
+                end
+            end
+        end
+    end
+    
+    findStandalonePetMovers(Workspace)
+    
+    return pets
+end
+
+-- Function to update dropdown options (modified from your original)
 local function updateDropdownOptions()
     local pets = getAllPets()
     currentPetsList = {}
-    local dropdownOptions = {"None"}
+    local dropdownOptions = {"None", "Clear All Exclusions", "Exclude All Pets"}
     
     for i, pet in pairs(pets) do
         local shortId = string.sub(tostring(pet.id), 1, 8)
@@ -538,20 +629,55 @@ local function updateDropdownOptions()
         currentPetsList[displayName] = pet
     end
     
-    if petDropdown then
+    -- Update the dropdown options
+    if petDropdown and petDropdown.Refresh then
         petDropdown:Refresh(dropdownOptions, true)
     end
 end
 
--- Function to refresh pets
+-- Function to refresh pets (modified from your original)
 local function refreshPets()
     selectedPets = {}
     allPetsSelected = false
-    petsFolder = findPetsFolder()
+    petsFolder = findPetsFolder and findPetsFolder()
     local pets = getAllPets()
     updateDropdownOptions()
     return pets
 end
+
+-- Helper functions for external use
+local function isPetExcluded(petId)
+    return excludedPets[petId] == true
+end
+
+local function getExcludedPetCount()
+    local count = 0
+    for _ in pairs(excludedPets) do
+        count = count + 1
+    end
+    return count
+end
+
+local function getExcludedPetIds()
+    local ids = {}
+    for petId, _ in pairs(excludedPets) do
+        table.insert(ids, petId)
+    end
+    return ids
+end
+
+-- Initialize the system
+if getAllPets then
+    updateDropdownOptions()
+end
+
+-- Make functions available globally if needed
+_G.updateDropdownOptions = updateDropdownOptions
+_G.refreshPets = refreshPets
+_G.isPetExcluded = isPetExcluded
+_G.getExcludedPetCount = getExcludedPetCount
+_G.getExcludedPetIds = getExcludedPetIds
+
 
 -- Function to update pet count
 local function updatePetCount()
@@ -794,31 +920,55 @@ end)
 
 -- Pet Exclusion Dropdown
 petDropdown = Tab:AddDropdown({
-    Name = "Select Pet to Exclude",
-    Default = "None",
+    Name = "Select Pets to Exclude",
+    Default = {}, -- Start with no exclusions
     Options = {"None"},
-    Callback = function(value)
-        if value == "None" then
-            -- Clear all exclusions
-            for petId, _ in pairs(excludedPets) do
-                removeESPMarker(petId)
+    Callback = function(selectedValues)
+        -- Clear all previous exclusions
+        for petId, _ in pairs(excludedPets) do
+            removeESPMarker(petId)
+        end
+        excludedPets = {}
+        
+        -- Handle the selected values (array of pet names)
+        if selectedValues and #selectedValues > 0 then
+            -- Check if "None" is selected or if array is empty
+            local hasNone = false
+            for _, value in pairs(selectedValues) do
+                if value == "None" then
+                    hasNone = true
+                    break
+                end
             end
-            excludedPets = {}
-        else
-            -- Clear previous exclusions
-            for petId, _ in pairs(excludedPets) do
-                removeESPMarker(petId)
-            end
-            excludedPets = {}
             
-            -- Add new exclusion
-            local selectedPet = currentPetsList[value]
-            if selectedPet then
-                excludedPets[selectedPet.id] = true
-                createESPMarker(selectedPet)
+            if not hasNone then
+                -- Add all selected pets to exclusions
+                for _, petName in pairs(selectedValues) do
+                    local selectedPet = currentPetsList[petName]
+                    if selectedPet then
+                        excludedPets[selectedPet.id] = true
+                        createESPMarker(selectedPet)
+                    end
+                end
             end
         end
+        
         updatePetCount()
+        
+        -- Show notification about exclusions
+        local excludedCount = 0
+        for _ in pairs(excludedPets) do
+            excludedCount = excludedCount + 1
+        end
+        
+        if excludedCount > 0 then
+            OrionLib:MakeNotification({
+                Name = "Pets Excluded",
+                Content = "Excluded " .. excludedCount .. " pets from auto middle.",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+        end
     end
 })
 
@@ -829,9 +979,14 @@ Tab:AddButton({
         -- Refresh pets
         local newPets = refreshPets()
         
-        -- Auto select all pets
+        -- Auto select all pets (this will also clear exclusions via the dropdown callback)
         selectAllPets()
         updatePetCount()
+        
+        -- Clear the exclusion dropdown when selecting all pets
+        if petDropdown then
+            petDropdown:ClearAll()
+        end
         
         OrionLib:MakeNotification({
             Name = "Pets Refreshed & Selected",
@@ -859,7 +1014,7 @@ Tab:AddToggle({
 
 local ShopTab = Window:MakeTab({
     Name = "Shop",
-    Icon = "",
+    Icon = "rbxassetid://4835310745",
     PremiumOnly = false
 })
 
@@ -881,7 +1036,7 @@ ShopTab:AddToggle({
                 Name = "Auto Buy Zen",
                 Content = "Auto Buy Zen enabled!",
                 Image = "rbxassetid://4483345998",
-                Time = 3
+                Time = 2
             })
         else
             -- Stop auto buying
@@ -889,13 +1044,6 @@ ShopTab:AddToggle({
                 buyConnection:Disconnect()
                 buyConnection = nil
             end
-            
-            OrionLib:MakeNotification({
-                Name = "Auto Buy Zen",
-                Content = "Auto Buy Zen disabled!",
-                Image = "rbxassetid://4483345998",
-                Time = 3
-            })
         end
     end    
 })
@@ -912,6 +1060,14 @@ ShopTab:AddToggle({
                 buyAllMerchantItems()
                 wait(0.1) -- Small delay to prevent spam
             end)
+
+            OrionLib:MakeNotification({
+                Name = "Auto Buy Zen",
+                Content = "Auto Buy Traveling Merchant enabled!",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+
         else
             -- Stop auto buying
             if buyConnection then
