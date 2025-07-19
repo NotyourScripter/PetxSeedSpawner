@@ -226,54 +226,55 @@ local Tab = Window:MakeTab({
 Tab:AddParagraph("Shovel Sprikler", "Inf. Sprinkler Glitch")
 
 -- Dropdown for single sprinkler type
-Tab:AddDropdown({
-	Name = "Sprinkler Type",
-	Default = "Select your Sprinkler",
-	Options = getSprinklerTypes(),
-	Callback = function(selected)
-		setSelectedSprinklers({selected})
-	end
+-- Method 3: Multi-Select Dropdown (if your UI library supports it)
+Tab:AddButton({
+    Name = "Multi-Select Sprinklers",
+    Callback = function()
+        -- This would open a custom multi-select interface
+        -- For now, we'll use a simple text input approach
+        local input = "Basic Sprinkler,Advanced Sprinkler" -- Example
+        -- In a real implementation, you'd get this from user input
+        
+        -- Parse comma-separated input
+        local sprinklers = {}
+        for sprinkler in string.gmatch(input, "([^,]+)") do
+            local trimmed = sprinkler:match("^%s*(.-)%s*$") -- Trim whitespace
+            if trimmed ~= "" then
+                table.insert(sprinklers, trimmed)
+            end
+        end
+        
+        setSelectedSprinklers(sprinklers)
+        OrionLib:MakeNotification({
+            Name = "Multi-Selection Set",
+            Content = string.format("Selected %d sprinkler types", #sprinklers),
+            Time = 3
+        })
+    end
 })
 
--- Refresh Sprinklers Button (connected to dropdown)
-Tab:AddButton({
-	Name = "Refresh Sprinklers",
-	Callback = function()
-		local selectedSprinklersList = getSelectedSprinklers()
-		if #selectedSprinklersList == 0 then
-			OrionLib:MakeNotification({
-				Name = "No Selection",
-				Content = "No sprinkler types selected to refresh.",
-				Time = 3
-			})
-			return
-		end
-
-		local shovelClient = player:WaitForChild("PlayerScripts"):WaitForChild("Shovel_Client")
-		local objectsFolder = game.Workspace:WaitForChild("Farm"):WaitForChild("Farm"):WaitForChild("Important"):WaitForChild("Objects_Physical")
-		local DeleteObject = game.ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("DeleteObject")
-		local RemoveItem = game.ReplicatedStorage:WaitForChild("GameEvents"):WaitForChild("Remove_Item")
-		
-		local destroyEnv = getsenv(shovelClient)
-		for _, obj in ipairs(objectsFolder:GetChildren()) do
-			for _, typeName in ipairs(selectedSprinklersList) do
-				if string.find(obj.Name, typeName) then
-					if typeof(destroyEnv.Destroy) == "function" then
-						destroyEnv.Destroy(obj)
-					end
-					DeleteObject:FireServer(obj)
-					RemoveItem:FireServer(obj)
-				end
-			end
-		end
-
-		setSelectedSprinklers({})
-		OrionLib:MakeNotification({
-			Name = "Refreshed",
-			Content = "Selected sprinklers removed and selection cleared.",
-			Time = 3
-		})
-	end
+-- Toggle for Select All Sprinklers (Array Format)
+Tab:AddToggle({
+    Name = "Select All Sprinklers",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            -- Create a copy of all sprinkler types
+            local allSprinklers = {}
+            for _, sprinklerType in ipairs(getSprinklerTypes()) do
+                table.insert(allSprinklers, sprinklerType)
+            end
+            setSelectedSprinklers(allSprinklers)
+            
+            OrionLib:MakeNotification({
+                Name = "All Selected",
+                Content = string.format("Selected all %d sprinkler types", #allSprinklers),
+                Time = 3
+            })
+        else
+            clearSelectedSprinklers()
+        end
+    end
 })
 
 -- Toggle for Select All Sprinklers
@@ -294,14 +295,48 @@ Tab:AddToggle({
 	end
 })
 
+Tab:AddButton({
+    Name = "Delete ALL Sprinklers",
+    Callback = function()
+        autoEquipShovel()
+        task.wait(0.5)
+        
+        -- Create array with all sprinkler types
+        local allSprinklers = {}
+        for _, sprinklerType in ipairs(getSprinklerTypes()) do
+            table.insert(allSprinklers, sprinklerType)
+        end
+        
+        Functions.deleteSprinklers(allSprinklers, OrionLib)
+    end
+})
+
 -- Delete Button
 Tab:AddButton({
 	Name = "Delete Sprinkler",
-	Callback = function()
-		autoEquipShovel()
-		task.wait(0.5)
-		deleteSprinklers()
-	end
+	    Callback = function()
+        local selectedArray = getSelectedSprinklers()
+        print("Delete button clicked - Current selection array:", selectedArray)
+        
+        if #selectedArray == 0 then
+            OrionLib:MakeNotification({
+                Name = "No Selection",
+                Content = "Please select sprinkler type(s) first",
+                Time = 3
+            })
+            return
+        end
+        
+        -- Auto equip shovel
+        autoEquipShovel()
+        task.wait(0.5)
+        
+        -- Call the delete function with array format
+        Functions.deleteSprinklers(selectedArray, OrionLib)
+        
+        -- Optional: Clear selection after deletion
+        -- clearSelectedSprinklers()
+    end
 })
 
 -- Pet Control Section
