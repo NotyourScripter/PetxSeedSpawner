@@ -1,5 +1,5 @@
 -- GG-Functions.lua
--- Functions for Grow A Garden Script Loader
+-- Complete Functions for Grow A Garden Script Loader
 
 local Functions = {}
 
@@ -9,6 +9,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local TeleportService = game:GetService("TeleportService")
 local player = Players.LocalPlayer
 
 -- Configuration
@@ -57,6 +59,12 @@ local allPetsSelected = false
 local petsFolder = nil
 local currentPetsList = {}
 
+-- Auto-buy states
+local autoBuyZenEnabled = false
+local autoBuyMerchantEnabled = false
+local zenBuyConnection = nil
+local merchantBuyConnection = nil
+
 -- Remote Events
 local BuyEventShopStock = ReplicatedStorage.GameEvents.BuyEventShopStock
 local BuyTravelingMerchantShopStock = ReplicatedStorage.GameEvents.BuyTravelingMerchantShopStock
@@ -69,6 +77,45 @@ local PetZoneAbility = ReplicatedStorage.GameEvents.PetZoneAbility
 local shovelClient = player:WaitForChild("PlayerScripts"):WaitForChild("Shovel_Client")
 local shovelPrompt = player:WaitForChild("PlayerGui"):WaitForChild("ShovelPrompt")
 local objectsFolder = Workspace:WaitForChild("Farm"):WaitForChild("Farm"):WaitForChild("Important"):WaitForChild("Objects_Physical")
+
+-- Auto-buy functions with proper connection management
+function Functions.toggleAutoBuyZen(enabled)
+    autoBuyZenEnabled = enabled
+    
+    if enabled then
+        if zenBuyConnection then zenBuyConnection:Disconnect() end
+        zenBuyConnection = RunService.Heartbeat:Connect(function()
+            if autoBuyZenEnabled then
+                Functions.buyAllZenItems()
+                task.wait(1) -- Prevent spam
+            end
+        end)
+    else
+        if zenBuyConnection then
+            zenBuyConnection:Disconnect()
+            zenBuyConnection = nil
+        end
+    end
+end
+
+function Functions.toggleAutoBuyMerchant(enabled)
+    autoBuyMerchantEnabled = enabled
+    
+    if enabled then
+        if merchantBuyConnection then merchantBuyConnection:Disconnect() end
+        merchantBuyConnection = RunService.Heartbeat:Connect(function()
+            if autoBuyMerchantEnabled then
+                Functions.buyAllMerchantItems()
+                task.wait(1) -- Prevent spam
+            end
+        end)
+    else
+        if merchantBuyConnection then
+            merchantBuyConnection:Disconnect()
+            merchantBuyConnection = nil
+        end
+    end
+end
 
 -- Function to buy all zen items
 function Functions.buyAllZenItems()
@@ -432,7 +479,7 @@ end
 function Functions.updateDropdownOptions()
     local pets = Functions.getAllPets()
     currentPetsList = {}
-    local dropdownOptions = {}
+    local dropdownOptions = {"None"}
     
     for i, pet in pairs(pets) do
         local shortId = string.sub(tostring(pet.id), 1, 8)
@@ -501,9 +548,6 @@ end
 
 -- Server hopping function
 function Functions.serverHop()
-    local HttpService = game:GetService("HttpService")
-    local TeleportService = game:GetService("TeleportService")
-
     local function getServers()
         local success, result = pcall(function()
             return game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100")
@@ -529,7 +573,44 @@ function Functions.serverHop()
     end
 end
 
--- Export configuration tables
+-- Function to copy Discord link
+function Functions.copyDiscordLink()
+    if setclipboard then
+        setclipboard("https://discord.gg/yura") -- Replace with actual Discord link
+        if _G.OrionLib then
+            _G.OrionLib:MakeNotification({
+                Name = "Discord Link Copied",
+                Content = "Discord link copied to clipboard!",
+                Time = 3
+            })
+        end
+    else
+        warn("Clipboard access not available.")
+    end
+end
+
+-- Cleanup function
+function Functions.cleanup()
+    -- Cleanup auto-buy connections
+    if zenBuyConnection then
+        zenBuyConnection:Disconnect()
+        zenBuyConnection = nil
+    end
+    if merchantBuyConnection then
+        merchantBuyConnection:Disconnect()
+        merchantBuyConnection = nil
+    end
+    
+    -- Clean up ESP markers
+    for petId, esp in pairs(excludedPetESPs) do
+        if esp then
+            esp:Destroy()
+        end
+    end
+    excludedPetESPs = {}
+end
+
+-- Export configuration tables and variables
 Functions.sprinklerTypes = sprinklerTypes
 Functions.zenItems = zenItems
 Functions.merchantItems = merchantItems
