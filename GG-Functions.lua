@@ -147,11 +147,54 @@ end
 
 -- Sprinklers 
 
-local function getSprinklerTypes()
+function Functions.deleteSprinklers(sprinklerArray, OrionLib)
+    local targetSprinklers = sprinklerArray or selectedSprinklers
+    
+    if #targetSprinklers == 0 then
+        if OrionLib then
+            OrionLib:MakeNotification({
+                Name = "No Selection",
+                Content = "No sprinkler types selected.",
+                Time = 3
+            })
+        end
+        return
+    end
+
+    -- Auto equip shovel first
+    Functions.autoEquipShovel()
+    task.wait(0.5)
+
+    local destroyEnv = getsenv(shovelClient)
+    local deletedCount = 0
+    local deletedTypes = {}
+
+    for _, obj in ipairs(objectsFolder:GetChildren()) do
+        for _, typeName in ipairs(targetSprinklers) do
+            if obj.Name == typeName then
+                -- Track which types we actually deleted
+                if not deletedTypes[typeName] then
+                    deletedTypes[typeName] = 0
+                end
+                deletedTypes[typeName] = deletedTypes[typeName] + 1
+                
+                -- Destroy the object
+                if typeof(destroyEnv.Destroy) == "function" then
+                    destroyEnv.Destroy(obj)
+                end
+                DeleteObject:FireServer(obj)
+                RemoveItem:FireServer(obj)
+                deletedCount = deletedCount + 1
+            end
+        end
+    end
+
+-- Enhanced helper functions for sprinkler selection
+function Functions.getSprinklerTypes()
     return sprinklerTypes
 end
 
-local function addSprinklerToSelection(sprinklerName)
+function Functions.addSprinklerToSelection(sprinklerName)
     -- Check if sprinkler is already in the array
     for i, sprinkler in ipairs(selectedSprinklers) do
         if sprinkler == sprinklerName then
@@ -160,39 +203,33 @@ local function addSprinklerToSelection(sprinklerName)
     end
     -- Add to array
     table.insert(selectedSprinklers, sprinklerName)
-    print("Added to selection:", sprinklerName)
-    print("Current selection array:", selectedSprinklers)
     return true
 end
 
-local function removeSprinklerFromSelection(sprinklerName)
+function Functions.removeSprinklerFromSelection(sprinklerName)
     -- Find and remove from array
     for i, sprinkler in ipairs(selectedSprinklers) do
         if sprinkler == sprinklerName then
             table.remove(selectedSprinklers, i)
-            print("Removed from selection:", sprinklerName)
-            print("Current selection array:", selectedSprinklers)
             return true
         end
     end
     return false
 end
 
-local function setSelectedSprinklers(sprinklerArray)
+function Functions.setSelectedSprinklers(sprinklerArray)
     selectedSprinklers = sprinklerArray or {}
-    print("Selection array set to:", selectedSprinklers)
 end
 
-local function getSelectedSprinklers()
+function Functions.getSelectedSprinklers()
     return selectedSprinklers
 end
 
-local function clearSelectedSprinklers()
+function Functions.clearSelectedSprinklers()
     selectedSprinklers = {}
-    print("Selection array cleared")
 end
 
-local function isSprinklerSelected(sprinklerName)
+function Functions.isSprinklerSelected(sprinklerName)
     for _, sprinkler in ipairs(selectedSprinklers) do
         if sprinkler == sprinklerName then
             return true
@@ -200,6 +237,19 @@ local function isSprinklerSelected(sprinklerName)
     end
     return false
 end
+
+function Functions.getSelectedSprinklersCount()
+    return #selectedSprinklers
+end
+
+function Functions.getSelectedSprinklersString()
+    if #selectedSprinklers == 0 then
+        return "None"
+    end
+    local selectionText = table.concat(selectedSprinklers, ", ")
+    return #selectionText > 50 and (selectionText:sub(1, 47) .. "...") or selectionText
+end
+
 
 -- Remove Farms function
 function Functions.removeFarms(OrionLib)
