@@ -1,14 +1,4 @@
--- Function to handle Notification signal detection
-function PetFunctions.onNotificationSignal()
-    if not autoMiddleEnabled then return end
-    
-    -- Run the loop when notification signal is detected
-    PetFunctions.startLoop()
-    task.wait(INITIAL_LOOP_TIME)
-    if autoMiddleEnabled then
-        PetFunctions.stopLoop()
-    end
-end-- Pet Control Functions Module
+-- Pet Control Functions Module
 -- This module contains all pet-related functionality
 
 local PetFunctions = {}
@@ -32,6 +22,10 @@ local ActivePetService = ReplicatedStorage.GameEvents.ActivePetService
 local PetZoneAbility = ReplicatedStorage.GameEvents.PetZoneAbility
 local Notification = ReplicatedStorage.GameEvents.Notification
 
+-- Pet UI Services for name detection
+local ActivePetsUIController = ReplicatedStorage.Modules.ActivePetsUIController
+local RefreshActivePetsUI = ReplicatedStorage.GameEvents.RefreshActivePetsUI
+
 -- Pet Control Variables
 local petsFolder = nil
 local selectedPets = {}
@@ -49,12 +43,135 @@ local petCountLabel = nil
 local petDropdown = nil
 local currentPetsList = {}
 local lastZoneAbilityTime = 0 -- Track last zone ability time
+local petNamesCache = {} -- Cache for pet names
 
 -- Function to check if string is UUID format
 function PetFunctions.isValidUUID(str)
     if not str or type(str) ~= "string" then return false end
     str = string.gsub(str, "[{}]", "")
     return string.match(str, "^%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x$") ~= nil
+end
+
+-- Function to get pet name from various sources
+function PetFunctions.getPetNameFromId(petId)
+    -- Check cache first
+    if petNamesCache[petId] then
+        return petNamesCache[petId]
+    end
+    
+    local petName = "Pet" -- Default fallback
+    
+    -- Method 1: Try to get from ActivePetsUIController
+    pcall(function()
+        local controller = require(ActivePetsUIController)
+        if controller then
+            -- Try different possible methods
+            if controller.GetActivePets then
+                local activePets = controller:GetActivePets()
+                if activePets then
+                    for _, petData in pairs(activePets) do
+                        if petData and (petData.id == petId or petData.uuid == petId or petData.petId == petId) then
+                            petName = petData.name or petData.petName or petData.displayName or "Pet"
+                            break
+                        end
+                    end
+                end
+            elseif controller.activePets then
+                for _, petData in pairs(controller.activePets) do
+                    if petData and (petData.id == petId or petData.uuid == petId or petData.petId == petId) then
+                        petName = petData.name or petData.petName or petData.displayName or "Pet"
+                        break
+                    end
+                end
+            elseif controller.pets then
+                for _, petData in pairs(controller.pets) do
+                    if petData and (petData.id == petId or petData.uuid == petId or petData.petId == petId) then
+                        petName = petData.name or petData.petName or petData.displayName or "Pet"
+                        break
+                    end
+                end
+            end
+        end
+    end)
+    
+    -- Method 2: Try to get from ReplicatedStorage pet data
+    if petName == "Pet" then
+        pcall(function()
+            local PetData = ReplicatedStorage:FindFirstChild("PetData") or 
+                           ReplicatedStorage:FindFirstChild("Pets") or
+                           ReplicatedStorage:FindFirstChild("ActivePets")
+            if PetData then
+                local petInfo = PetData:FindFirstChild(petId)
+                if petInfo then
+                    petName = petInfo:GetAttribute("Name") or 
+                             petInfo:GetAttribute("PetName") or
+                             petInfo:GetAttribute("DisplayName") or "Pet"
+                end
+            end
+        end)
+    end
+    
+    -- Method 3: Try to get from player data
+    if petName == "Pet" then
+        pcall(function()
+            local player = Players.LocalPlayer
+            if player then
+                local playerData = player:FindFirstChild("Data") or player:FindFirstChild("leaderstats")
+                if playerData then
+                    local pets = playerData:FindFirstChild("Pets") or playerData:FindFirstChild("ActivePets")
+                    if pets then
+                        local petData = pets:FindFirstChild(petId)
+                        if petData then
+                            petName = petData.Value or petData:GetAttribute("Name") or "Pet"
+                        end
+                    end
+                end
+            end
+        end)
+    end
+    
+    -- Method 4: Try to extract from pet model hierarchy
+    if petName == "Pet" then
+        pcall(function()
+            local pets = PetFunctions.getAllPetsRaw()
+            for _, pet in pairs(pets) do
+                if pet.id == petId then
+                    -- Check model name
+                    if pet.model and pet.model.Name and not PetFunctions.isValidUUID(pet.model.Name) then
+                        petName = pet.model.Name
+                        break
+                    end
+                    -- Check for name attributes in model
+                    if pet.model then
+                        petName = pet.model:GetAttribute("PetName") or 
+                                 pet.model:GetAttribute("Name") or 
+                                 pet.model:GetAttribute("DisplayName") or "Pet"
+                        if petName ~= "Pet" then break end
+                    end
+                    -- Check mover attributes
+                    if pet.mover then
+                        petName = pet.mover:GetAttribute("PetName") or 
+                                 pet.mover:GetAttribute("Name") or 
+                                 pet.mover:GetAttribute("DisplayName") or "Pet"
+                        if petName ~= "Pet" then break end
+                    end
+                end
+            end
+        end)
+    end
+    
+    -- Cache the result
+    petNamesCache[petId] = petName
+    return petName
+end
+
+-- Function to refresh pet UI data
+function PetFunctions.refreshPetUIData()
+    pcall(function()
+        RefreshActivePetsUI:FireServer()
+    end)
+    task.wait(0.1) -- Small delay to let UI update
+    petNamesCache = {} -- Clear cache when refreshing
 end
 
 -- Function to find pets folder
@@ -99,6 +216,90 @@ function PetFunctions.getPetIdFromPetMover(petMover)
     return petMover:GetFullName()
 end
 
+-- Function to get all pets (raw, without names for internal use)
+function PetFunctions.getAllPetsRaw()
+    local pets = {}
+    
+    local function processPetContainer(container)
+        local petMover = container:FindFirstChild("PetMover")
+        if petMover and petMover:IsA("BasePart") then
+            local petId = PetFunctions.getPetIdFromPetMover(petMover)
+            if petId then
+                table.insert(pets, {
+                    id = petId,
+                    model = container,
+                    mover = petMover,
+                    position = petMover.Position
+                })
+            end
+        end
+    end
+    
+    local function findStandalonePetMovers(parent)
+        for _, child in pairs(parent:GetChildren()) do
+            if child:IsA("Part") and child.Name == "PetMover" then
+                local petId = PetFunctions.getPetIdFromPetMover(child)
+                if petId then
+                    table.insert(pets, {
+                        id = petId,
+                        model = child.Parent,
+                        mover = child,
+                        position = child.Position
+                    })
+                end
+            elseif child:IsA("Model") or child:IsA("Folder") then
+                findStandalonePetMovers(child)
+            end
+        end
+    end
+    
+    if not petsFolder then
+        petsFolder = PetFunctions.findPetsFolder()
+    end
+    
+    if petsFolder then
+        if petsFolder.Name == "PetsPhysical" then
+            local petMoverFolder = petsFolder:FindFirstChild("PetMover")
+            if petMoverFolder then
+                for _, petContainer in pairs(petMoverFolder:GetChildren()) do
+                    if petContainer:IsA("Model") and PetFunctions.isValidUUID(petContainer.Name) then
+                        processPetContainer(petContainer)
+                    end
+                end
+            end
+        else
+            for _, child in pairs(petsFolder:GetChildren()) do
+                if child:IsA("Model") then
+                    processPetContainer(child)
+                end
+            end
+        end
+    end
+    
+    findStandalonePetMovers(Workspace)
+    
+    return pets
+end
+
+-- Function to get all pets with real names
+function PetFunctions.getAllPets()
+    local pets = {}
+    local rawPets = PetFunctions.getAllPetsRaw()
+    
+    for _, pet in pairs(rawPets) do
+        local petName = PetFunctions.getPetNameFromId(pet.id)
+        table.insert(pets, {
+            id = pet.id,
+            name = petName, -- Now uses real name detection
+            model = pet.model,
+            mover = pet.mover,
+            position = pet.position
+        })
+    end
+    
+    return pets
+end
+
 -- Function to create ESP "X" marker
 function PetFunctions.createESPMarker(pet)
     if excludedPetESPs[pet.id] then
@@ -139,73 +340,6 @@ function PetFunctions.removeESPMarker(petId)
         excludedPetESPs[petId]:Destroy()
         excludedPetESPs[petId] = nil
     end
-end
-
--- Function to get all pets
-function PetFunctions.getAllPets()
-    local pets = {}
-    
-    local function processPetContainer(container)
-        local petMover = container:FindFirstChild("PetMover")
-        if petMover and petMover:IsA("BasePart") then
-            local petId = PetFunctions.getPetIdFromPetMover(petMover)
-            if petId then
-                table.insert(pets, {
-                    id = petId,
-                    name = "Pet",
-                    model = container,
-                    mover = petMover,
-                    position = petMover.Position
-                })
-            end
-        end
-    end
-    
-    local function findStandalonePetMovers(parent)
-        for _, child in pairs(parent:GetChildren()) do
-            if child:IsA("Part") and child.Name == "PetMover" then
-                local petId = PetFunctions.getPetIdFromPetMover(child)
-                if petId then
-                    table.insert(pets, {
-                        id = petId,
-                        name = "Pet",
-                        model = child.Parent,
-                        mover = child,
-                        position = child.Position
-                    })
-                end
-            elseif child:IsA("Model") or child:IsA("Folder") then
-                findStandalonePetMovers(child)
-            end
-        end
-    end
-    
-    if not petsFolder then
-        petsFolder = PetFunctions.findPetsFolder()
-    end
-    
-    if petsFolder then
-        if petsFolder.Name == "PetsPhysical" then
-            local petMoverFolder = petsFolder:FindFirstChild("PetMover")
-            if petMoverFolder then
-                for _, petContainer in pairs(petMoverFolder:GetChildren()) do
-                    if petContainer:IsA("Model") and PetFunctions.isValidUUID(petContainer.Name) then
-                        processPetContainer(petContainer)
-                    end
-                end
-            end
-        else
-            for _, child in pairs(petsFolder:GetChildren()) do
-                if child:IsA("Model") then
-                    processPetContainer(child)
-                end
-            end
-        end
-    end
-    
-    findStandalonePetMovers(Workspace)
-    
-    return pets
 end
 
 -- Function to get farm center point
@@ -343,6 +477,18 @@ function PetFunctions.onPetZoneAbility()
     end)
 end
 
+-- Function to handle Notification signal detection
+function PetFunctions.onNotificationSignal()
+    if not autoMiddleEnabled then return end
+    
+    -- Run the loop when notification signal is detected
+    PetFunctions.startLoop()
+    task.wait(INITIAL_LOOP_TIME)
+    if autoMiddleEnabled then
+        PetFunctions.stopLoop()
+    end
+end
+
 -- Function to setup PetZoneAbility listener
 function PetFunctions.setupZoneAbilityListener()
     if zoneAbilityConnection then
@@ -389,6 +535,9 @@ function PetFunctions.cleanup()
         end
     end
     excludedPetESPs = {}
+    
+    -- Clear name cache
+    petNamesCache = {}
 end
 
 -- Function to select all pets
@@ -401,15 +550,18 @@ function PetFunctions.selectAllPets()
     end
 end
 
--- Function to update dropdown options
+-- Enhanced function to update dropdown options with real names
 function PetFunctions.updateDropdownOptions()
+    -- Refresh UI data first to get latest pet names
+    PetFunctions.refreshPetUIData()
+    
     local pets = PetFunctions.getAllPets()
     currentPetsList = {}
     local dropdownOptions = {"None"}
     
     for i, pet in pairs(pets) do
         local shortId = string.sub(tostring(pet.id), 1, 8)
-        local displayName = "Pet (" .. shortId .. "...)"
+        local displayName = pet.name .. " (" .. shortId .. "...)"
         table.insert(dropdownOptions, displayName)
         currentPetsList[displayName] = pet
     end
@@ -425,6 +577,7 @@ function PetFunctions.refreshPets()
     selectedPets = {}
     allPetsSelected = false
     petsFolder = PetFunctions.findPetsFolder()
+    petNamesCache = {} -- Clear name cache
     local pets = PetFunctions.getAllPets()
     PetFunctions.updateDropdownOptions()
     return pets
