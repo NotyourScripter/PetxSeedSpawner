@@ -191,4 +191,286 @@ Tab:AddButton({
 
 -- Toggle for Select All Sprinklers
 Tab:AddToggle({
-	Name =
+	Name = "Select All Sprinklers",
+	Default = false,
+	Callback = function(Value)
+		if Value then
+			selectedSprinklers = sprinklerTypes
+			OrionLib:MakeNotification({
+				Name = "All Selected",
+				Content = "All sprinkler types selected.",
+				Time = 3
+			})
+		else
+			selectedSprinklers = {}
+		end
+	end
+})
+
+-- Delete Button
+Tab:AddButton({
+	Name = "Delete Sprinkler",
+	Callback = function()
+		autoEquipShovel()
+		task.wait(0.5)
+		deleteSprinklers()
+	end
+})
+
+-- Pet Control Section
+Tab:AddParagraph("Pet Exploit", "Auto Middle Pets, Select Pet to Exclude.")
+
+-- Get initial pets
+local initialPets = refreshPets()
+
+petCountLabel = Tab:AddLabel("Pets Found: 0 | Selected: 0 | Excluded: 0")
+
+-- Update pet count initially and periodically
+updatePetCount()
+
+task.spawn(function()
+    while true do
+        updatePetCount()
+        task.wait(1)
+    end
+end)
+
+-- Pet Exclusion Dropdown
+petDropdown = Tab:AddDropdown({
+    Name = "Select Pets to Exclude",
+    Default = {}, -- Start with no exclusions
+    Options = {"None"},
+    Callback = function(selectedValues)
+        -- Clear all previous exclusions
+        for petId, _ in pairs(excludedPets) do
+            removeESPMarker(petId)
+        end
+        excludedPets = {}
+        
+        -- Handle the selected values (array of pet names)
+        if selectedValues and #selectedValues > 0 then
+            -- Check if "None" is selected or if array is empty
+            local hasNone = false
+            for _, value in pairs(selectedValues) do
+                if value == "None" then
+                    hasNone = true
+                    break
+                end
+            end
+            
+            if not hasNone then
+                -- Add all selected pets to exclusions
+                for _, petName in pairs(selectedValues) do
+                    local selectedPet = currentPetsList[petName]
+                    if selectedPet then
+                        excludedPets[selectedPet.id] = true
+                        createESPMarker(selectedPet)
+                    end
+                end
+            end
+        end
+        
+        updatePetCount()
+        
+        -- Show notification about exclusions
+        local excludedCount = 0
+        for _ in pairs(excludedPets) do
+            excludedCount = excludedCount + 1
+        end
+        
+        if excludedCount > 0 then
+            OrionLib:MakeNotification({
+                Name = "Pets Excluded",
+                Content = "Excluded " .. excludedCount .. " pets from auto middle.",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+        end
+    end
+})
+
+-- Combined Refresh and Auto Select All Button
+Tab:AddButton({
+    Name = "Refresh & Auto Select All Pets",
+    Callback = function()
+        -- Refresh pets
+        local newPets = refreshPets()
+        
+        -- Auto select all pets (this will also clear exclusions via the dropdown callback)
+        selectAllPets()
+        updatePetCount()
+        
+        -- Clear the exclusion dropdown when selecting all pets
+        if petDropdown then
+            petDropdown:ClearAll()
+        end
+        
+        OrionLib:MakeNotification({
+            Name = "Pets Refreshed & Selected",
+            Content = "Found " .. #newPets .. " pets and selected all for auto middle.",
+            Image = "rbxassetid://4483345998",
+            Time = 3
+        })
+    end
+})
+
+-- Auto Middle Toggle
+Tab:AddToggle({
+    Name = "Auto Middle Pets",
+    Default = false,
+    Callback = function(value)
+        autoMiddleEnabled = value
+        if value then
+            setupZoneAbilityListener()
+            startInitialLoop()
+        else
+            cleanup()
+        end
+    end
+})
+
+local ShopTab = Window:MakeTab({
+    Name = "Shop",
+    Icon = "rbxassetid://4835310745",
+    PremiumOnly = false
+})
+
+-- Add Toggle
+ShopTab:AddToggle({
+    Name = "Auto Buy Zen",
+    Default = false,
+    Callback = function(Value)
+        autoBuyEnabled = Value
+        
+        if autoBuyEnabled then
+            -- Start auto buying
+            buyConnection = RunService.Heartbeat:Connect(function()
+                buyAllZenItems()
+                wait(0.1) -- Small delay to prevent spam
+            end)
+            
+            OrionLib:MakeNotification({
+                Name = "Auto Buy Zen",
+                Content = "Auto Buy Zen enabled!",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+        else
+            -- Stop auto buying
+            if buyConnection then
+                buyConnection:Disconnect()
+                buyConnection = nil
+            end
+        end
+    end    
+})
+
+ShopTab:AddToggle({
+    Name = "Auto Buy Traveling Merchants",
+    Default = false,
+    Callback = function(Value)
+        autoBuyEnabled = Value
+        
+        if autoBuyEnabled then
+            -- Start auto buying
+            buyConnection = RunService.Heartbeat:Connect(function()
+                buyAllMerchantItems()
+                wait(0.1) -- Small delay to prevent spam
+            end)
+
+            OrionLib:MakeNotification({
+                Name = "Auto Buy Zen",
+                Content = "Auto Buy Traveling Merchant enabled!",
+                Image = "rbxassetid://4483345998",
+                Time = 2
+            })
+
+        else
+            -- Stop auto buying
+            if buyConnection then
+                buyConnection:Disconnect()
+                buyConnection = nil
+            end
+        end
+    end    
+})
+
+ShopTab:AddParagraph("AUTO BUY GEARS", "COMING SOON...")
+ShopTab:AddParagraph("AUTO BUY SEEDS", "COMING SOON...")
+
+-- Misc Tab
+local MiscTab = Window:MakeTab({
+	Name = "Misc",
+	Icon = "rbxassetid://6031280882",
+	PremiumOnly = false
+})
+
+-- Lag Reduction Section
+MiscTab:AddParagraph("Performance", "Reduce game lag by removing lag-causing objects.")
+
+-- New Reduce Lag Button
+MiscTab:AddButton({
+	Name = "Reduce Lag",
+	Callback = function()
+		repeat
+			local lag = game.Workspace:findFirstChild("Lag", true)
+			if (lag ~= nil) then
+				lag:remove()
+			end
+			wait()
+		until (game.Workspace:findFirstChild("Lag", true) == nil)
+		
+		OrionLib:MakeNotification({
+			Name = "Lag Reduced",
+			Content = "All lag objects have been removed.",
+			Time = 3
+		})
+	end
+})
+
+-- NEW: Remove Farms Button
+MiscTab:AddButton({
+	Name = "Remove Farms (Stay close to your farm)",
+	Callback = function()
+		removeFarms()
+	end
+})
+
+-- Social Tab
+local SocialTab = Window:MakeTab({
+	Name = "Social",
+	Icon = "rbxassetid://6031075938", -- You can change this icon
+	PremiumOnly = false
+})
+
+-- TikTok Section
+SocialTab:AddParagraph("TIKTOK", "@yurahaxyz        |        @yurahayz")
+
+-- YouTube Section
+SocialTab:AddParagraph("YOUTUBE", "YUraxYZ")
+
+-- Discord Button
+SocialTab:AddButton({
+	Name = "Yura Community Discord",
+	Callback = function()
+		setclipboard("https://discord.gg/gpR7YQjnFt")
+		OrionLib:MakeNotification({
+			Name = "Copied!",
+			Content = "Discord invite copied to clipboard.",
+			Time = 3
+		})
+	end
+})
+
+-- Cleanup on script end
+Players.PlayerRemoving:Connect(function(player)
+    if player == Players.LocalPlayer then
+        cleanup()
+    end
+end)
+
+-- Final notification
+OrionLib:MakeNotification({
+    Name = "GAGSL Hub Loaded",
+    Content = "GAGSL Hub loaded with +999 Pogi Points!",
+})
