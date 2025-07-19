@@ -225,11 +225,10 @@ local Tab = Window:MakeTab({
 -- Sprinkler Section
 Tab:AddParagraph("Shovel Sprikler", "Inf. Sprinkler Glitch")
 
-Functions.createSimpleSprinklerUI(Tab, OrionLib)
 local sprinklerDropdown = Tab:AddDropdown({
         Name = "Select Sprinkler to Delete",
         Default = {},
-        Options = (function()
+        Options = function()
             local options = {"None"}
             for _, sprinklerType in ipairs(Functions.getSprinklerTypes()) do
                 table.insert(options, sprinklerType)
