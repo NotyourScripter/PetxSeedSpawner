@@ -329,7 +329,7 @@ Tab:AddButton({
             })
             return
         end
-        autoEquipShovel(
+        autoEquipShovel()
         task.wait(0.5)
         Functions.deleteSprinklers(selectedArray, OrionLib)
         clearSelectedSprinklers() 
