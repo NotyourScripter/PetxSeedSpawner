@@ -1,6 +1,15 @@
--- Enhanced Pet Functions Module (Controller-Managed Active Pets Only)
--- This module contains all pet-related functionality for active pets managed by ActivePetsUIController
--- No startup unequip/re-equip - Only works with currently active pets
+-- Function to handle Notification signal detection
+function PetFunctions.onNotificationSignal()
+    if not autoMiddleEnabled then return end
+    
+    -- Run the loop when notification signal is detected
+    PetFunctions.startLoop()
+    task.wait(INITIAL_LOOP_TIME)
+    if autoMiddleEnabled then
+        PetFunctions.stopLoop()
+    end
+end-- Pet Control Functions Module
+-- This module contains all pet-related functionality
 
 local PetFunctions = {}
 
@@ -18,19 +27,10 @@ local ZONE_ABILITY_DELAY = 3
 local ZONE_ABILITY_LOOP_TIME = 3
 local AUTO_LOOP_INTERVAL = 240 -- 4 minutes in seconds
 
--- Fast refresh configuration
-local FAST_UNEQUIP_DELAY = 0.01
-local FAST_EQUIP_DELAY = 0.01
-local BATCH_SIZE = 10
-
 -- Pet Control Services
 local ActivePetService = ReplicatedStorage.GameEvents.ActivePetService
-local PetsService = ReplicatedStorage.GameEvents.PetsService
 local PetZoneAbility = ReplicatedStorage.GameEvents.PetZoneAbility
 local Notification = ReplicatedStorage.GameEvents.Notification
-
--- ActivePetsUIController reference
-local ActivePetsUIController = ReplicatedStorage.Modules:WaitForChild("ActivePetsUIController")
 
 -- Pet Control Variables
 local petsFolder = nil
@@ -48,71 +48,13 @@ local isLooping = false
 local petCountLabel = nil
 local petDropdown = nil
 local currentPetsList = {}
-local lastZoneAbilityTime = 0
-local isRefreshing = false
-local isInitialized = false
-
--- Cache for pet names and controller data
-local petNameCache = {}
-local controllerActivePets = {}
+local lastZoneAbilityTime = 0 -- Track last zone ability time
 
 -- Function to check if string is UUID format
 function PetFunctions.isValidUUID(str)
     if not str or type(str) ~= "string" then return false end
     str = string.gsub(str, "[{}]", "")
     return string.match(str, "^%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x$") ~= nil
-end
-
--- Function to get active pets from ActivePetsUIController
-function PetFunctions.getActivePetsFromController()
-    local success, activePets = pcall(function()
-        if ActivePetsUIController then
-            local controllerModule = require(ActivePetsUIController)
-            
-            -- Try various possible function names
-            if controllerModule.GetActivePets then
-                return controllerModule:GetActivePets()
-            elseif controllerModule.getActivePets then
-                return controllerModule:getActivePets()
-            elseif controllerModule.ActivePets then
-                return controllerModule.ActivePets
-            elseif controllerModule.activePets then
-                return controllerModule.activePets
-            elseif controllerModule.GetEquippedPets then
-                return controllerModule:GetEquippedPets()
-            elseif controllerModule.getEquippedPets then
-                return controllerModule:getEquippedPets()
-            end
-        end
-        return {}
-    end)
-    
-    if success and activePets then
-        controllerActivePets = activePets
-        return activePets
-    else
-        return controllerActivePets -- Return cached version if available
-    end
-end
-
--- Function to check if a pet is managed by ActivePetsUIController
-function PetFunctions.isPetManagedByController(petId)
-    local activePets = PetFunctions.getActivePetsFromController()
-    
-    if not activePets or type(activePets) ~= "table" then
-        return false
-    end
-    
-    for _, petData in pairs(activePets) do
-        if type(petData) == "table" then
-            local controllerPetId = petData.Id or petData.id or petData.UUID or petData.uuid
-            if controllerPetId and tostring(controllerPetId) == tostring(petId) then
-                return true
-            end
-        end
-    end
-    
-    return false
 end
 
 -- Function to find pets folder
@@ -133,85 +75,6 @@ function PetFunctions.findPetsFolder()
     end
     
     return nil
-end
-
--- Function to get only active controller-managed pet tools from character
-function PetFunctions.getControllerManagedPetToolsFromCharacter()
-    local player = Players.LocalPlayer
-    if not player or not player.Character then return {} end
-    
-    local petTools = {}
-    
-    for _, tool in pairs(player.Character:GetChildren()) do
-        if tool:IsA("Tool") and (tool:FindFirstChild("PetToolLocal") or tool:FindFirstChild("PetToolServer")) then
-            local petId = tool:GetAttribute("PetId") or tool:GetAttribute("Id") or tool:GetAttribute("UUID")
-            if petId and PetFunctions.isPetManagedByController(petId) then
-                table.insert(petTools, tool)
-            end
-        end
-    end
-    
-    return petTools
-end
-
--- Function to get active pet names from controller only
-function PetFunctions.getActivePetNamesFromController()
-    local activePets = PetFunctions.getActivePetsFromController()
-    local petNames = {}
-    
-    if activePets and type(activePets) == "table" then
-        for _, petData in pairs(activePets) do
-            if type(petData) == "table" and petData.Name then
-                local cleanName = string.match(petData.Name, "^([^%[]+)")
-                if cleanName then
-                    cleanName = string.gsub(cleanName, "%s+$", "")
-                    table.insert(petNames, cleanName)
-                end
-            elseif type(petData) == "string" then
-                local cleanName = string.match(petData, "^([^%[]+)")
-                if cleanName then
-                    cleanName = string.gsub(cleanName, "%s+$", "")
-                    table.insert(petNames, cleanName)
-                end
-            end
-        end
-    end
-    
-    return petNames
-end
-
--- Function to update pet name cache from active pets only
-function PetFunctions.updatePetNameCache()
-    petNameCache = {}
-    local activePets = PetFunctions.getActivePetsFromController()
-    
-    if activePets and type(activePets) == "table" then
-        for _, petData in pairs(activePets) do
-            if type(petData) == "table" then
-                local petName = petData.Name or petData.name
-                local petId = petData.Id or petData.id or petData.UUID or petData.uuid
-                
-                if petName and petId then
-                    local cleanName = string.match(petName, "^([^%[]+)")
-                    if cleanName then
-                        cleanName = string.gsub(cleanName, "%s+$", "")
-                        petNameCache[tostring(petId)] = cleanName
-                    end
-                end
-            end
-        end
-    end
-end
-
--- Function to get clean pet name for active pets
-function PetFunctions.getActivePetName(petIndex)
-    local activeNames = PetFunctions.getActivePetNamesFromController()
-    
-    if activeNames[petIndex] then
-        return activeNames[petIndex]
-    end
-    
-    return "Pet"
 end
 
 -- Function to get pet ID from PetMover
@@ -278,40 +141,22 @@ function PetFunctions.removeESPMarker(petId)
     end
 end
 
--- Function to get all active pets managed by controller only
-function PetFunctions.getAllActivePets()
+-- Function to get all pets
+function PetFunctions.getAllPets()
     local pets = {}
-    local petIndex = 1
-    local controllerPets = PetFunctions.getActivePetsFromController()
-    
-    -- Create a lookup table for controller-managed pets
-    local controllerPetIds = {}
-    if controllerPets and type(controllerPets) == "table" then
-        for _, petData in pairs(controllerPets) do
-            if type(petData) == "table" then
-                local petId = petData.Id or petData.id or petData.UUID or petData.uuid
-                if petId then
-                    controllerPetIds[tostring(petId)] = true
-                end
-            end
-        end
-    end
     
     local function processPetContainer(container)
         local petMover = container:FindFirstChild("PetMover")
         if petMover and petMover:IsA("BasePart") then
             local petId = PetFunctions.getPetIdFromPetMover(petMover)
-            if petId and controllerPetIds[tostring(petId)] then
-                local petName = PetFunctions.getActivePetName(petIndex)
+            if petId then
                 table.insert(pets, {
                     id = petId,
-                    name = petName,
+                    name = "Pet",
                     model = container,
                     mover = petMover,
-                    position = petMover.Position,
-                    index = petIndex
+                    position = petMover.Position
                 })
-                petIndex = petIndex + 1
             end
         end
     end
@@ -320,17 +165,14 @@ function PetFunctions.getAllActivePets()
         for _, child in pairs(parent:GetChildren()) do
             if child:IsA("Part") and child.Name == "PetMover" then
                 local petId = PetFunctions.getPetIdFromPetMover(child)
-                if petId and controllerPetIds[tostring(petId)] then
-                    local petName = PetFunctions.getActivePetName(petIndex)
+                if petId then
                     table.insert(pets, {
                         id = petId,
-                        name = petName,
+                        name = "Pet",
                         model = child.Parent,
                         mover = child,
-                        position = child.Position,
-                        index = petIndex
+                        position = child.Position
                     })
-                    petIndex = petIndex + 1
                 end
             elseif child:IsA("Model") or child:IsA("Folder") then
                 findStandalonePetMovers(child)
@@ -415,232 +257,17 @@ function PetFunctions.setPetState(petId, state)
     end)
 end
 
--- Function to unequip pet (controller-managed pets only)
-function PetFunctions.unequipControllerManagedPet(petTool)
-    if not petTool or not petTool.Parent then return false end
-    
-    local petId = petTool:GetAttribute("PetId") or petTool:GetAttribute("Id") or petTool:GetAttribute("UUID")
-    if not petId or not PetFunctions.isPetManagedByController(petId) then
-        return false
-    end
-    
-    local success = pcall(function()
-        if PetsService then
-            PetsService:FireServer("UnequipPet", petTool.Name)
-        end
-        
-        if petTool.Parent == Players.LocalPlayer.Character then
-            petTool.Parent = Players.LocalPlayer.Backpack
-        end
-        
-        if petTool:FindFirstChild("Handle") then
-            petTool.Handle.CanTouch = false
-        end
-        
-        local unequipEvent = petTool:FindFirstChild("Unequip") or petTool:FindFirstChild("UnequipEvent")
-        if unequipEvent and unequipEvent:IsA("RemoteEvent") then
-            unequipEvent:FireServer()
-        end
-    end)
-    
-    return success
-end
-
--- Function to equip pet (controller-managed pets only)
-function PetFunctions.equipControllerManagedPet(petTool)
-    if not petTool or not petTool.Parent then return false end
-    
-    local petId = petTool:GetAttribute("PetId") or petTool:GetAttribute("Id") or petTool:GetAttribute("UUID")
-    if not petId or not PetFunctions.isPetManagedByController(petId) then
-        return false
-    end
-    
-    local success = pcall(function()
-        local player = Players.LocalPlayer
-        if not player or not player.Character then return end
-        
-        if PetsService then
-            PetsService:FireServer("EquipPet", petTool.Name)
-        end
-        
-        if petTool.Parent == player.Backpack then
-            player.Character.Humanoid:EquipTool(petTool)
-        end
-        
-        if petTool:FindFirstChild("Handle") then
-            petTool.Handle.CanTouch = true
-        end
-        
-        local equipEvent = petTool:FindFirstChild("Equip") or petTool:FindFirstChild("EquipEvent")
-        if equipEvent and equipEvent:IsA("RemoteEvent") then
-            equipEvent:FireServer()
-        end
-    end)
-    
-    return success
-end
-
--- Fast batch unequip function - Only for controller-managed pets
-function PetFunctions.fastUnequipControllerPets()
-    local petTools = PetFunctions.getControllerManagedPetToolsFromCharacter()
-    local player = Players.LocalPlayer
-    
-    if not player or not player.Character then return false end
-    
-    -- Unequip all controller-managed pets in batches
-    for i = 1, #petTools, BATCH_SIZE do
-        local batch = {}
-        for j = i, math.min(i + BATCH_SIZE - 1, #petTools) do
-            table.insert(batch, petTools[j])
-        end
-        
-        for _, petTool in pairs(batch) do
-            spawn(function()
-                PetFunctions.unequipControllerManagedPet(petTool)
-            end)
-        end
-        
-        if i + BATCH_SIZE - 1 < #petTools then
-            task.wait(FAST_UNEQUIP_DELAY)
-        end
-    end
-    
-    return true
-end
-
--- Fast batch equip function - Only for controller-managed pets
-function PetFunctions.fastEquipControllerPets()
-    task.wait(0.1)
-    
-    local player = Players.LocalPlayer
-    if not player or not player.Backpack then return false end
-    
-    local petTools = {}
-    
-    for _, tool in pairs(player.Backpack:GetChildren()) do
-        if tool:IsA("Tool") and (tool:FindFirstChild("PetToolLocal") or tool:FindFirstChild("PetToolServer")) then
-            local petId = tool:GetAttribute("PetId") or tool:GetAttribute("Id") or tool:GetAttribute("UUID")
-            if petId and PetFunctions.isPetManagedByController(petId) then
-                table.insert(petTools, tool)
-            end
-        end
-    end
-    
-    if not player.Character then return false end
-    
-    -- Equip all controller-managed pets in batches
-    for i = 1, #petTools, BATCH_SIZE do
-        local batch = {}
-        for j = i, math.min(i + BATCH_SIZE - 1, #petTools) do
-            table.insert(batch, petTools[j])
-        end
-        
-        for _, petTool in pairs(batch) do
-            spawn(function()
-                PetFunctions.equipControllerManagedPet(petTool)
-            end)
-        end
-        
-        if i + BATCH_SIZE - 1 < #petTools then
-            task.wait(FAST_EQUIP_DELAY)
-        end
-    end
-    
-    return true
-end
-
--- Initialize function (NO unequip/re-equip on startup)
-function PetFunctions.initialize()
-    if isInitialized then
-        return
-    end
-    
-    -- Find pets folder
-    petsFolder = PetFunctions.findPetsFolder()
-    
-    -- Update pet name cache
-    PetFunctions.updatePetNameCache()
-    
-    -- Get initial pet list (no unequip/re-equip)
-    local pets = PetFunctions.getAllActivePets()
-    
-    -- Update dropdown and count
-    PetFunctions.updateDropdownOptions()
-    PetFunctions.updatePetCount()
-    
-    isInitialized = true
-end
-
--- Enhanced refresh pets function with fast unequip/re-equip (Controller-Managed Pets Only)
-function PetFunctions.refreshActivePets()
-    if isRefreshing then
-        return {}
-    end
-    
-    isRefreshing = true
-    
-    -- Store current selections
-    local previouslySelected = {}
-    for petId, _ in pairs(selectedPets) do
-        previouslySelected[petId] = true
-    end
-    local wasAllSelected = allPetsSelected
-    
-    -- Reset selections temporarily
-    selectedPets = {}
-    allPetsSelected = false
-    
-    local success = true
-    
-    -- Fast unequip only controller-managed pets
-    if not PetFunctions.fastUnequipControllerPets() then
-        success = false
-    end
-    
-    task.wait(0.2)
-    
-    -- Fast re-equip controller-managed pets
-    if not PetFunctions.fastEquipControllerPets() then
-        success = false
-    end
-    
-    task.wait(0.3)
-    
-    -- Refresh pets folder and update data
-    petsFolder = PetFunctions.findPetsFolder()
-    PetFunctions.updatePetNameCache()
-    local pets = PetFunctions.getAllActivePets()
-    
-    -- Update dropdown and restore selections
-    PetFunctions.updateDropdownOptions()
-    
-    if wasAllSelected then
-        PetFunctions.selectAllPets()
-    else
-        for _, pet in pairs(pets) do
-            if previouslySelected[pet.id] then
-                selectedPets[pet.id] = true
-            end
-        end
-    end
-    
-    PetFunctions.updatePetCount()
-    
-    isRefreshing = false
-    
-    return pets
-end
-
 -- Function to run the auto middle loop
 function PetFunctions.runAutoMiddleLoop()
     if not autoMiddleEnabled then return end
     
-    local pets = PetFunctions.getAllActivePets()
+    local pets = PetFunctions.getAllPets()
     local farmCenterPoint = PetFunctions.getFarmCenterPoint()
     
     if not farmCenterPoint then return end
     
     for _, pet in pairs(pets) do
+        -- Skip excluded pets
         if not excludedPets[pet.id] then
             if allPetsSelected or selectedPets[pet.id] then
                 local distance = (pet.mover.Position - farmCenterPoint).Magnitude
@@ -697,6 +324,7 @@ end
 function PetFunctions.onPetZoneAbility()
     if not autoMiddleEnabled then return end
     
+    -- Update the last zone ability time
     lastZoneAbilityTime = tick()
     
     if delayTimer then
@@ -713,17 +341,6 @@ function PetFunctions.onPetZoneAbility()
             end
         end
     end)
-end
-
--- Function to handle Notification signal detection
-function PetFunctions.onNotificationSignal()
-    if not autoMiddleEnabled then return end
-    
-    PetFunctions.startLoop()
-    task.wait(INITIAL_LOOP_TIME)
-    if autoMiddleEnabled then
-        PetFunctions.stopLoop()
-    end
 end
 
 -- Function to setup PetZoneAbility listener
@@ -772,15 +389,13 @@ function PetFunctions.cleanup()
         end
     end
     excludedPetESPs = {}
-    
-    isInitialized = false
 end
 
 -- Function to select all pets
 function PetFunctions.selectAllPets()
     selectedPets = {}
     allPetsSelected = true
-    local pets = PetFunctions.getAllActivePets()
+    local pets = PetFunctions.getAllPets()
     for _, pet in pairs(pets) do
         selectedPets[pet.id] = true
     end
@@ -788,42 +403,133 @@ end
 
 -- Function to update dropdown options
 function PetFunctions.updateDropdownOptions()
-    local pets = PetFunctions.getAllActivePets()
+    local pets = PetFunctions.getAllPets()
     currentPetsList = {}
     local dropdownOptions = {"None"}
     
-    for _, pet in pairs(pets) do
-        table.insert(dropdownOptions, pet.name)
-        table.insert(currentPetsList, pet)
+    for i, pet in pairs(pets) do
+        local shortId = string.sub(tostring(pet.id), 1, 8)
+        local displayName = "Pet (" .. shortId .. "...)"
+        table.insert(dropdownOptions, displayName)
+        currentPetsList[displayName] = pet
     end
     
-    if petDropdown then
-        petDropdown:SetOptions(dropdownOptions)
+    -- Update the dropdown options
+    if petDropdown and petDropdown.Refresh then
+        petDropdown:Refresh(dropdownOptions, true)
     end
+end
+
+-- Function to refresh pets
+function PetFunctions.refreshPets()
+    selectedPets = {}
+    allPetsSelected = false
+    petsFolder = PetFunctions.findPetsFolder()
+    local pets = PetFunctions.getAllPets()
+    PetFunctions.updateDropdownOptions()
+    return pets
 end
 
 -- Function to update pet count
 function PetFunctions.updatePetCount()
-    if not petCountLabel then return end
-    
-    local pets = PetFunctions.getAllActivePets()
+    local pets = PetFunctions.getAllPets()
     local selectedCount = 0
+    local excludedCount = 0
+    
+    for petId, _ in pairs(selectedPets) do
+        selectedCount = selectedCount + 1
+    end
+    
+    for petId, _ in pairs(excludedPets) do
+        excludedCount = excludedCount + 1
+    end
     
     if allPetsSelected then
         selectedCount = #pets
-    else
-        for _, pet in pairs(pets) do
-            if selectedPets[pet.id] then
-                selectedCount = selectedCount + 1
-            end
-        end
     end
     
-    petCountLabel.Text = "Selected: " .. selectedCount .. " / " .. #pets .. " pets"
+    if petCountLabel then
+        petCountLabel:Set("Pets Found: " .. #pets .. " | Selected: " .. selectedCount .. " | Excluded: " .. excludedCount)
+    end
 end
 
--- Expose functions for external use
-PetFunctions.getAllPets = PetFunctions.getAllActivePets
-PetFunctions.refreshPets = PetFunctions.refreshActivePets
+-- Helper functions for external use
+function PetFunctions.isPetExcluded(petId)
+    return excludedPets[petId] == true
+end
+
+function PetFunctions.getExcludedPetCount()
+    local count = 0
+    for _ in pairs(excludedPets) do
+        count = count + 1
+    end
+    return count
+end
+
+function PetFunctions.getExcludedPetIds()
+    local ids = {}
+    for petId, _ in pairs(excludedPets) do
+        table.insert(ids, petId)
+    end
+    return ids
+end
+
+-- Getters and Setters
+function PetFunctions.setAutoMiddleEnabled(enabled)
+    autoMiddleEnabled = enabled
+    if enabled then
+        lastZoneAbilityTime = tick() -- Reset timer when enabling
+        PetFunctions.setupNotificationListener()
+    else
+        if notificationConnection then
+            notificationConnection:Disconnect()
+            notificationConnection = nil
+        end
+    end
+end
+
+function PetFunctions.getAutoMiddleEnabled()
+    return autoMiddleEnabled
+end
+
+function PetFunctions.setPetCountLabel(label)
+    petCountLabel = label
+end
+
+function PetFunctions.setPetDropdown(dropdown)
+    petDropdown = dropdown
+end
+
+function PetFunctions.getSelectedPets()
+    return selectedPets
+end
+
+function PetFunctions.getExcludedPets()
+    return excludedPets
+end
+
+function PetFunctions.getCurrentPetsList()
+    return currentPetsList
+end
+
+function PetFunctions.setExcludedPets(pets)
+    excludedPets = pets
+end
+
+-- Initialize the system with auto refresh
+task.spawn(function()
+    task.wait(1) -- Wait a moment for everything to load
+    PetFunctions.refreshPets()
+    PetFunctions.updatePetCount()
+end)
+
+PetFunctions.updateDropdownOptions()
+
+-- Make functions available globally if needed
+_G.updateDropdownOptions = PetFunctions.updateDropdownOptions
+_G.refreshPets = PetFunctions.refreshPets
+_G.isPetExcluded = PetFunctions.isPetExcluded
+_G.getExcludedPetCount = PetFunctions.getExcludedPetCount
+_G.getExcludedPetIds = PetFunctions.getExcludedPetIds
 
 return PetFunctions
