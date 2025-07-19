@@ -308,18 +308,52 @@ function PetFunctions.getAllPets()
     return pets
 end
 
+-- Function to unequip specific pet
+function PetFunctions.unequipPet(petId)
+    local formattedPetId = PetFunctions.formatPetIdToUUID(petId)
+    pcall(function()
+        PetsService:FireServer("UnequipPet", formattedPetId)
+    end)
+end
+
+-- Function to equip specific pet
+function PetFunctions.equipPet(petId, cframe)
+    local formattedPetId = PetFunctions.formatPetIdToUUID(petId)
+    local defaultCFrame = cframe or CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)
+    pcall(function()
+        PetsService:FireServer("EquipPet", formattedPetId, defaultCFrame)
+    end)
+end
+
 -- Function to unequip all pets using new service
 function PetFunctions.unequipAllPets()
-    pcall(function()
-        PetsService:FireServer("UnequipPet")
-    end)
+    local pets = PetFunctions.getAllPets()
+    for _, pet in pairs(pets) do
+        if pet.id then
+            PetFunctions.unequipPet(pet.id)
+            task.wait(0.05) -- Small delay to prevent overwhelming the server
+        end
+    end
 end
 
 -- Function to equip all pets using new service
 function PetFunctions.equipAllPets()
-    pcall(function()
-        PetsService:FireServer("EquipPet")
-    end)
+    local pets = PetFunctions.getAllPets()
+    local player = Players.LocalPlayer
+    local defaultCFrame = CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)
+    
+    -- Try to get player position for CFrame
+    if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+        local pos = player.Character.HumanoidRootPart.Position
+        defaultCFrame = CFrame.new(pos.X, pos.Y, pos.Z, 1, 0, 0, 0, 1, 0, 0, 0, 1)
+    end
+    
+    for _, pet in pairs(pets) do
+        if pet.id then
+            PetFunctions.equipPet(pet.id, defaultCFrame)
+            task.wait(0.05) -- Small delay to prevent overwhelming the server
+        end
+    end
 end
 
 -- Function to refresh Active Pets UI
@@ -691,5 +725,7 @@ _G.refreshActivePetsUI = PetFunctions.refreshActivePetsUI
 _G.isPetExcluded = PetFunctions.isPetExcluded
 _G.getExcludedPetCount = PetFunctions.getExcludedPetCount
 _G.getExcludedPetIds = PetFunctions.getExcludedPetIds
+_G.equipPet = PetFunctions.equipPet
+_G.unequipPet = PetFunctions.unequipPet
 
 return PetFunctions
