@@ -23,6 +23,7 @@ local sprinklerTypes = {
     "Honey Sprinkler",
     "Chocolate Sprinkler"
 }
+local selectedSprinklers = {}
 
 local zenItems = {
     "Zen Seed Pack",
