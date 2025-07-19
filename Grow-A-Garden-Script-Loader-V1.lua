@@ -66,6 +66,32 @@ local function getSelectedSprinklers()
     return selectedSprinklers
 end
 
+local function clearSelectedSprinklers()
+    selectedSprinklers = {}
+end
+
+local function addSprinklerToSelection(sprinklerName)
+    for i, sprinkler in ipairs(selectedSprinklers) do
+        if sprinkler == sprinklerName then
+            return false
+        end
+    end
+    table.insert(selectedSprinklers, sprinklerName)
+    return true
+end
+
+local function getSelectedSprinklersCount()
+    return #selectedSprinklers
+end
+
+local function getSelectedSprinklersString()
+    if #selectedSprinklers == 0 then
+        return "None"
+    end
+    local selectionText = table.concat(selectedSprinklers, ", ")
+    return #selectionText > 50 and (selectionText:sub(1, 47) .. "...") or selectionText
+end
+
 -- Helper functions for pets
 local function refreshPets()
     return PetFunctions.refreshPets()
@@ -225,52 +251,46 @@ local Tab = Window:MakeTab({
 -- Sprinkler Section
 Tab:AddParagraph("Shovel Sprikler", "Inf. Sprinkler Glitch")
 
+-- Create sprinkler UI manually (since the function doesn't exist in CoreFunctions)
 local sprinklerDropdown = Tab:AddDropdown({
-        Name = "Select Sprinkler to Delete",
-        Default = {},
-        Options = function()
-            local options = {"None"}
-            for _, sprinklerType in ipairs(Functions.getSprinklerTypes()) do
-                table.insert(options, sprinklerType)
+    Name = "Select Sprinkler to Delete",
+    Default = {},
+    Options = (function()
+        local options = {"None"}
+        for _, sprinklerType in ipairs(getSprinklerTypes()) do
+            table.insert(options, sprinklerType)
+        end
+        return options
+    end)(),
+    Callback = function(selectedValues)
+        -- Clear all previous selections
+        clearSelectedSprinklers()
+        
+        -- Handle the selected values (array of sprinkler names)
+        if selectedValues and #selectedValues > 0 then
+            -- Check if "None" is selected
+            local hasNone = false
+            for _, value in pairs(selectedValues) do
+                if value == "None" then
+                    hasNone = true
+                    break
+                end
             end
-            return options
-        end)(),
-        Callback = function(selectedValues)
-            -- Clear all previous selections
-            Functions.clearSelectedSprinklers()
             
-            -- Handle the selected values (array of sprinkler names)
-            if selectedValues and #selectedValues > 0 then
-                -- Check if "None" is selected
-                local hasNone = false
-                for _, value in pairs(selectedValues) do
-                    if value == "None" then
-                        hasNone = true
-                        break
-                    end
+            if not hasNone then
+                -- Add all selected sprinklers to selection
+                for _, sprinklerName in pairs(selectedValues) do
+                    addSprinklerToSelection(sprinklerName)
                 end
                 
-                if not hasNone then
-                    -- Add all selected sprinklers to selection
-                    for _, sprinklerName in pairs(selectedValues) do
-                        Functions.addSprinklerToSelection(sprinklerName)
-                    end
-                    
-                    -- Show notification of selection
-                    OrionLib:MakeNotification({
-                        Name = "Selection Updated",
-                        Content = string.format("Selected (%d): %s", 
-                            Functions.getSelectedSprinklersCount(), 
-                            Functions.getSelectedSprinklersString()),
-                        Time = 3
-                    })
-                else
-                    OrionLib:MakeNotification({
-                        Name = "Selection Cleared",
-                        Content = "No sprinklers selected",
-                        Time = 2
-                    })
-                end
+                -- Show notification of selection
+                OrionLib:MakeNotification({
+                    Name = "Selection Updated",
+                    Content = string.format("Selected (%d): %s", 
+                        getSelectedSprinklersCount(), 
+                        getSelectedSprinklersString()),
+                    Time = 3
+                })
             else
                 OrionLib:MakeNotification({
                     Name = "Selection Cleared",
@@ -278,59 +298,63 @@ local sprinklerDropdown = Tab:AddDropdown({
                     Time = 2
                 })
             end
+        else
+            OrionLib:MakeNotification({
+                Name = "Selection Cleared",
+                Content = "No sprinklers selected",
+                Time = 2
+            })
         end
-    })
+    end
+})
 
-    -- 2. Select All Toggle
-    Tab:AddToggle({
-        Name = "Select All Sprinkler",
-        Default = false,
-        Callback = function(Value)
-            if Value then
-                -- Create a copy of all sprinkler types
-                local allSprinklers = {}
-                for _, sprinklerType in ipairs(Functions.getSprinklerTypes()) do
-                    table.insert(allSprinklers, sprinklerType)
-                end
-                Functions.setSelectedSprinklers(allSprinklers)
-                
-                OrionLib:MakeNotification({
-                    Name = "All Selected",
-                    Content = string.format("Selected all %d sprinkler types", #allSprinklers),
-                    Time = 3
-                })
-            else
-                Functions.clearSelectedSprinklers()
-                OrionLib:MakeNotification({
-                    Name = "Selection Cleared",
-                    Content = "All selections cleared",
-                    Time = 2
-                })
+-- Select All Toggle
+Tab:AddToggle({
+    Name = "Select All Sprinkler",
+    Default = false,
+    Callback = function(Value)
+        if Value then
+            -- Create a copy of all sprinkler types
+            local allSprinklers = {}
+            for _, sprinklerType in ipairs(getSprinklerTypes()) do
+                table.insert(allSprinklers, sprinklerType)
             end
+            setSelectedSprinklers(allSprinklers)
+            
+            OrionLib:MakeNotification({
+                Name = "All Selected",
+                Content = string.format("Selected all %d sprinkler types", #allSprinklers),
+                Time = 3
+            })
+        else
+            clearSelectedSprinklers()
+            OrionLib:MakeNotification({
+                Name = "Selection Cleared",
+                Content = "All selections cleared",
+                Time = 2
+            })
         end
-    })
+    end
+})
 
-    -- 3. Delete Button
-    Tab:AddButton({
-        Name = "Delete Sprinkler",
-        Callback = function()
-            local selectedArray = Functions.getSelectedSprinklers()
-            
-            if #selectedArray == 0 then
-                OrionLib:MakeNotification({
-                    Name = "No Selection",
-                    Content = "Please select sprinkler type(s) first",
-                    Time = 4
-                })
-                return
-            end
-            
-            Functions.deleteSprinklers(selectedArray, OrionLib)
+-- Delete Button
+Tab:AddButton({
+    Name = "Delete Sprinkler",
+    Callback = function()
+        local selectedArray = getSelectedSprinklers()
+        
+        if #selectedArray == 0 then
+            OrionLib:MakeNotification({
+                Name = "No Selection",
+                Content = "Please select sprinkler type(s) first",
+                Time = 4
+            })
+            return
         end
-    })
-    
-    return sprinklerDropdown
-end
+        
+        deleteSprinklers()
+    end
+})
 
 -- Pet Control Section
 Tab:AddParagraph("Pet Exploit", "Auto Middle Pets, Select Pet to Exclude.")
