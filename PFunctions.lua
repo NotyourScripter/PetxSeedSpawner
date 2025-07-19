@@ -1,5 +1,17 @@
--- Fast Pet Detection and Registration System
-local FastPetSystem = {}
+-- Function to handle Notification signal detection
+function PetFunctions.onNotificationSignal()
+    if not autoMiddleEnabled then return end
+    
+    -- Run the loop when notification signal is detected
+    PetFunctions.startLoop()
+    task.wait(INITIAL_LOOP_TIME)
+    if autoMiddleEnabled then
+        PetFunctions.stopLoop()
+    end
+end-- Pet Control Functions Module
+-- This module contains all pet-related functionality
+
+local PetFunctions = {}
 
 -- Services
 local Players = game:GetService("Players")
@@ -7,500 +19,517 @@ local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
--- Pet Services
-local PetsService = ReplicatedStorage.GameEvents.PetsService
-local RefreshActivePetsUI = ReplicatedStorage.GameEvents.RefreshActivePetsUI
+-- Pet Radius Control Configuration
+local RADIUS = 0.5
+local LOOP_DELAY = 1
+local INITIAL_LOOP_TIME = 5
+local ZONE_ABILITY_DELAY = 3
+local ZONE_ABILITY_LOOP_TIME = 3
+local AUTO_LOOP_INTERVAL = 240 -- 4 minutes in seconds
 
--- Fast detection configuration
-local DETECTION_TIMEOUT = 0.5 -- Maximum time to wait for detection
-local EQUIP_DELAY = 0.05 -- Minimal delay between operations
-local NAME_DETECTION_ATTEMPTS = 3 -- How many times to try getting name
+-- Pet Control Services
+local ActivePetService = ReplicatedStorage.GameEvents.ActivePetService
+local PetZoneAbility = ReplicatedStorage.GameEvents.PetZoneAbility
+local Notification = ReplicatedStorage.GameEvents.Notification
 
--- Pet cache for ultra-fast access
-local petCache = {}
-local uuidToNameMap = {}
+-- Pet Control Variables
+local petsFolder = nil
+local selectedPets = {}
+local excludedPets = {}
+local excludedPetESPs = {}
+local allPetsSelected = false
+local autoMiddleEnabled = false
+local autoMiddleConnection = nil
+local zoneAbilityConnection = nil
+local notificationConnection = nil
+local loopTimer = nil
+local delayTimer = nil
+local isLooping = false
+local petCountLabel = nil
+local petDropdown = nil
+local currentPetsList = {}
+local lastZoneAbilityTime = 0 -- Track last zone ability time
 
--- Function to detect UUID format
-function FastPetSystem.isValidUUID(str)
+-- Function to check if string is UUID format
+function PetFunctions.isValidUUID(str)
     if not str or type(str) ~= "string" then return false end
     str = string.gsub(str, "[{}]", "")
     return string.match(str, "^%x%x%x%x%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%-%x%x%x%x%x%x%x%x%x%x%x%x$") ~= nil
 end
 
--- Function to format UUID properly
-function FastPetSystem.formatUUID(uuid)
-    if string.match(uuid, "^{%x+%-%x+%-%x+%-%x+%-%x+}$") then
-        return uuid
-    end
-    uuid = string.gsub(uuid, "[{}]", "")
-    return "{" .. uuid .. "}"
-end
-
--- Ultra-fast UUID detection from multiple sources
-function FastPetSystem.detectUUIDsFromWorkspace()
-    local uuids = {}
-    local startTime = tick()
+-- Function to find pets folder
+function PetFunctions.findPetsFolder()
+    local possiblePaths = {"PetsPhysical", "Active Pets", "Pets", "ActivePets", "PetModels"}
     
-    -- Pre-scan backpack for immediate pet data (fastest method)
-    FastPetSystem.scanBackpackForPetNames()
-    
-    -- Check common pet locations simultaneously
-    local locations = {
-        Workspace:FindFirstChild("PetsPhysical"),
-        Workspace:FindFirstChild("Active Pets"),
-        Workspace:FindFirstChild("Pets"),
-        Workspace:FindFirstChild("ActivePets")
-    }
-    
-    for _, location in pairs(locations) do
-        if location then
-            -- Fast traversal with early exit
-            local function quickScan(parent, depth)
-                if depth > 3 or tick() - startTime > DETECTION_TIMEOUT then return end
-                
-                for _, child in pairs(parent:GetChildren()) do
-                    -- Check if this is a UUID
-                    if FastPetSystem.isValidUUID(child.Name) then
-                        uuids[child.Name] = true
-                    end
-                    
-                    -- Check attributes for UUIDs
-                    for attrName, attrValue in pairs(child:GetAttributes()) do
-                        if (attrName:lower():find("pet") or attrName:lower():find("id")) and 
-                           FastPetSystem.isValidUUID(tostring(attrValue)) then
-                            uuids[tostring(attrValue)] = true
-                        end
-                    end
-                    
-                    -- Quick recursive check
-                    if child:IsA("Model") or child:IsA("Folder") then
-                        quickScan(child, depth + 1)
-                    end
-                end
-            end
-            
-            quickScan(location, 0)
-        end
+    for _, path in pairs(possiblePaths) do
+        local folder = Workspace:FindFirstChild(path)
+        if folder then return folder end
     end
     
-    -- Also check player backpack and character for pet tools
     local player = Players.LocalPlayer
-    if player then
-        -- Check backpack
-        if player.Backpack then
-            for _, tool in pairs(player.Backpack:GetChildren()) do
-                if tool:IsA("Tool") and (tool:FindFirstChild("PetToolLocal") or tool:FindFirstChild("PetToolServer")) then
-                    local petId = tool:GetAttribute("PetId") or 
-                                 tool:GetAttribute("UUID") or 
-                                 tool:GetAttribute("Id")
-                    
-                    if petId and FastPetSystem.isValidUUID(tostring(petId)) then
-                        uuids[tostring(petId)] = true
-                    end
-                end
-            end
-        end
-        
-        -- Check character
-        if player.Character then
-            for _, tool in pairs(player.Character:GetChildren()) do
-                if tool:IsA("Tool") and (tool:FindFirstChild("PetToolLocal") or tool:FindFirstChild("PetToolServer")) then
-                    local petId = tool:GetAttribute("PetId") or 
-                                 tool:GetAttribute("UUID") or 
-                                 tool:GetAttribute("Id")
-                    
-                    if petId and FastPetSystem.isValidUUID(tostring(petId)) then
-                        uuids[tostring(petId)] = true
-                    end
-                end
-            end
-        end
-    end
-    
-    return uuids
-end
-
--- Function to clean pet name (remove KG and Age)
-function FastPetSystem.cleanPetName(petName)
-    if not petName then return nil end
-    
-    local cleanName = petName
-    
-    -- Remove weight pattern [X.XX KG] or [X KG]
-    cleanName = string.gsub(cleanName, "%s*%[%d+%.?%d*%s*KG%]", "")
-    
-    -- Remove age pattern [Age XX]
-    cleanName = string.gsub(cleanName, "%s*%[Age%s*%d+%]", "")
-    
-    -- Remove any other bracketed info like [Shiny], [Golden], etc. if needed
-    -- cleanName = string.gsub(cleanName, "%s*%[.-%]", "")
-    
-    -- Trim whitespace
-    cleanName = string.match(cleanName, "^%s*(.-)%s*$") or cleanName
-    
-    return cleanName
-end
-
--- Ultra-fast pet name detection from multiple sources
-function FastPetSystem.extractPetNameFast(uuid)
-    local player = Players.LocalPlayer
-    if not player then return nil end
-    
-    -- Method 1: Check backpack first (fastest and most reliable)
-    if player.Backpack then
-        for _, tool in pairs(player.Backpack:GetChildren()) do
-            if tool:IsA("Tool") and (tool:FindFirstChild("PetToolLocal") or tool:FindFirstChild("PetToolServer")) then
-                -- Check if this tool corresponds to our UUID
-                local toolId = tool:GetAttribute("PetId") or 
-                              tool:GetAttribute("UUID") or 
-                              tool:GetAttribute("Id")
-                
-                if toolId == uuid or FastPetSystem.formatUUID(tostring(toolId)) == FastPetSystem.formatUUID(uuid) then
-                    return FastPetSystem.cleanPetName(tool.Name)
-                end
-                
-                -- If no direct ID match, use the tool name (most common case)
-                -- Since backpack pets are currently owned, we can use them as reference
-                local cleanName = FastPetSystem.cleanPetName(tool.Name)
-                if cleanName and cleanName ~= "" then
-                    -- Store this mapping for future use
-                    uuidToNameMap[FastPetSystem.formatUUID(uuid)] = cleanName
-                    return cleanName
-                end
-            end
-        end
-    end
-    
-    -- Method 2: Check character for equipped pet tools
-    if player.Character then
-        for _, tool in pairs(player.Character:GetChildren()) do
-            if tool:IsA("Tool") and (tool:FindFirstChild("PetToolLocal") or tool:FindFirstChild("PetToolServer")) then
-                local toolId = tool:GetAttribute("PetId") or 
-                              tool:GetAttribute("UUID") or 
-                              tool:GetAttribute("Id")
-                
-                if toolId == uuid or FastPetSystem.formatUUID(tostring(toolId)) == FastPetSystem.formatUUID(uuid) then
-                    return FastPetSystem.cleanPetName(tool.Name)
-                end
-            end
-        end
-    end
-    
-    -- Method 3: Fast UI traversal (fallback)
-    if player.PlayerGui then
-        local uiNames = {
-            "ActivePetsControllerUI",
-            "ActivePetsUI", 
-            "PetsUI",
-            "PetInventoryUI",
-            "InventoryUI"
-        }
-        
-        for _, uiName in pairs(uiNames) do
-            local ui = player.PlayerGui:FindFirstChild(uiName)
-            if ui then
-                local function findPetName(parent, depth)
-                    if depth > 3 then return nil end
-                    
-                    for _, child in pairs(parent:GetChildren()) do
-                        -- Look for UUID match
-                        if child.Name == uuid or 
-                           (child:GetAttribute("PetId") == uuid) or
-                           (child:GetAttribute("UUID") == uuid) then
-                            
-                            local nameLabel = child:FindFirstChild("PetName") or 
-                                            child:FindFirstChild("Name") or
-                                            child:FindFirstChild("TextLabel")
-                            
-                            if nameLabel and nameLabel:IsA("TextLabel") then
-                                return FastPetSystem.cleanPetName(nameLabel.Text)
-                            end
-                        end
-                        
-                        if child:IsA("Frame") or child:IsA("ScrollingFrame") then
-                            local found = findPetName(child, depth + 1)
-                            if found then return found end
-                        end
-                    end
-                    return nil
-                end
-                
-                local petName = findPetName(ui, 0)
-                if petName then return petName end
-            end
+    if player and player.Character then
+        for _, path in pairs(possiblePaths) do
+            local folder = player.Character:FindFirstChild(path)
+            if folder then return folder end
         end
     end
     
     return nil
 end
 
--- Smart backpack scanning for pet names
-function FastPetSystem.scanBackpackForPetNames()
-    local player = Players.LocalPlayer
-    if not player or not player.Backpack then return {} end
+-- Function to get pet ID from PetMover
+function PetFunctions.getPetIdFromPetMover(petMover)
+    if not petMover then return nil end
     
-    local petNames = {}
+    local petId = petMover:GetAttribute("PetId") or 
+                 petMover:GetAttribute("Id") or 
+                 petMover:GetAttribute("UUID") or
+                 petMover:GetAttribute("petId")
     
-    for _, tool in pairs(player.Backpack:GetChildren()) do
-        if tool:IsA("Tool") and (tool:FindFirstChild("PetToolLocal") or tool:FindFirstChild("PetToolServer")) then
-            local cleanName = FastPetSystem.cleanPetName(tool.Name)
-            if cleanName and cleanName ~= "" then
-                -- Try to get the pet ID
-                local petId = tool:GetAttribute("PetId") or 
-                             tool:GetAttribute("UUID") or 
-                             tool:GetAttribute("Id") or
-                             tool:GetDebugId()
-                
+    if petId then return petId end
+    
+    if petMover.Parent and PetFunctions.isValidUUID(petMover.Parent.Name) then
+        return petMover.Parent.Name
+    end
+    
+    if PetFunctions.isValidUUID(petMover.Name) then
+        return petMover.Name
+    end
+    
+    return petMover:GetFullName()
+end
+
+-- Function to create ESP "X" marker
+function PetFunctions.createESPMarker(pet)
+    if excludedPetESPs[pet.id] then
+        return -- ESP already exists
+    end
+    
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ExcludedPetESP"
+    billboard.Adornee = pet.mover
+    billboard.Size = UDim2.new(0, 50, 0, 50)
+    billboard.StudsOffset = Vector3.new(0, 2, 0)
+    billboard.LightInfluence = 0
+    billboard.AlwaysOnTop = true
+    
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundTransparency = 1
+    frame.Parent = billboard
+    
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    textLabel.BackgroundTransparency = 1
+    textLabel.Text = "X"
+    textLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
+    textLabel.TextScaled = true
+    textLabel.Font = Enum.Font.SourceSansBold
+    textLabel.TextStrokeTransparency = 0
+    textLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+    textLabel.Parent = frame
+    
+    billboard.Parent = pet.mover
+    excludedPetESPs[pet.id] = billboard
+end
+
+-- Function to remove ESP marker
+function PetFunctions.removeESPMarker(petId)
+    if excludedPetESPs[petId] then
+        excludedPetESPs[petId]:Destroy()
+        excludedPetESPs[petId] = nil
+    end
+end
+
+-- Function to get all pets
+function PetFunctions.getAllPets()
+    local pets = {}
+    
+    local function processPetContainer(container)
+        local petMover = container:FindFirstChild("PetMover")
+        if petMover and petMover:IsA("BasePart") then
+            local petId = PetFunctions.getPetIdFromPetMover(petMover)
+            if petId then
+                table.insert(pets, {
+                    id = petId,
+                    name = "Pet",
+                    model = container,
+                    mover = petMover,
+                    position = petMover.Position
+                })
+            end
+        end
+    end
+    
+    local function findStandalonePetMovers(parent)
+        for _, child in pairs(parent:GetChildren()) do
+            if child:IsA("Part") and child.Name == "PetMover" then
+                local petId = PetFunctions.getPetIdFromPetMover(child)
                 if petId then
-                    petNames[FastPetSystem.formatUUID(tostring(petId))] = cleanName
-                else
-                    -- Store by tool name as backup
-                    petNames[tool.Name] = cleanName
+                    table.insert(pets, {
+                        id = petId,
+                        name = "Pet",
+                        model = child.Parent,
+                        mover = child,
+                        position = child.Position
+                    })
                 end
+            elseif child:IsA("Model") or child:IsA("Folder") then
+                findStandalonePetMovers(child)
             end
         end
     end
     
-    -- Update our name cache
-    for uuid, name in pairs(petNames) do
-        if FastPetSystem.isValidUUID(uuid) then
-            uuidToNameMap[uuid] = name
-        end
+    if not petsFolder then
+        petsFolder = PetFunctions.findPetsFolder()
     end
     
-    return petNames
-end
-
--- Lightning-fast pet processing pipeline
-function FastPetSystem.processPetUUID(uuid, callback)
-    local formattedUUID = FastPetSystem.formatUUID(uuid)
-    local petData = {
-        id = formattedUUID,
-        name = nil,
-        processed = false
-    }
-    
-    -- Step 1: Unequip (0.05s)
-    task.spawn(function()
-        pcall(function()
-            PetsService:FireServer("UnequipPet", formattedUUID)
-        end)
-        
-        task.wait(EQUIP_DELAY)
-        
-        -- Step 2: Try to get name from cache first, then backpack, then UI
-        if uuidToNameMap[formattedUUID] then
-            petData.name = uuidToNameMap[formattedUUID]
-        else
-            -- Step 3: Ultra-fast name detection (prioritize backpack)
-            local name = FastPetSystem.extractPetNameFast(uuid)
-            if name then
-                petData.name = name
-                uuidToNameMap[formattedUUID] = name -- Cache it
-            else
-                -- Fallback: try multiple quick attempts
-                for i = 1, NAME_DETECTION_ATTEMPTS do
-                    name = FastPetSystem.extractPetNameFast(uuid)
-                    if name then
-                        petData.name = name
-                        uuidToNameMap[formattedUUID] = name
-                        break
+    if petsFolder then
+        if petsFolder.Name == "PetsPhysical" then
+            local petMoverFolder = petsFolder:FindFirstChild("PetMover")
+            if petMoverFolder then
+                for _, petContainer in pairs(petMoverFolder:GetChildren()) do
+                    if petContainer:IsA("Model") and PetFunctions.isValidUUID(petContainer.Name) then
+                        processPetContainer(petContainer)
                     end
-                    task.wait(0.02) -- Very short wait
+                end
+            end
+        else
+            for _, child in pairs(petsFolder:GetChildren()) do
+                if child:IsA("Model") then
+                    processPetContainer(child)
+                end
+            end
+        end
+    end
+    
+    findStandalonePetMovers(Workspace)
+    
+    return pets
+end
+
+-- Function to get farm center point
+function PetFunctions.getFarmCenterPoint()
+    local player = Players.LocalPlayer
+    if not player or not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+    
+    local playerPosition = player.Character.HumanoidRootPart.Position
+    local farmFolder = Workspace:FindFirstChild("Farm")
+    
+    if farmFolder then
+        local closestFarm = nil
+        local closestDistance = math.huge
+        
+        for _, farm in pairs(farmFolder:GetChildren()) do
+            local centerPoint = farm:FindFirstChild("Center_Point")
+            if centerPoint then
+                local distance = (playerPosition - centerPoint.Position).Magnitude
+                if distance < closestDistance then
+                    closestDistance = distance
+                    closestFarm = centerPoint.Position
                 end
             end
         end
         
-        -- Step 4: Re-equip immediately (0.05s)
-        pcall(function()
-            local player = Players.LocalPlayer
-            local defaultCFrame = CFrame.new(0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1)
-            
-            if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                local pos = player.Character.HumanoidRootPart.Position
-                defaultCFrame = CFrame.new(pos.X, pos.Y, pos.Z)
-            end
-            
-            PetsService:FireServer("EquipPet", formattedUUID, defaultCFrame)
-        end)
-        
-        -- Step 5: Finalize and callback
-        petData.name = petData.name or ("Pet_" .. string.sub(uuid, 1, 8))
-        petData.processed = true
-        petCache[formattedUUID] = petData
-        
-        if callback then
-            callback(petData)
-        end
-    end)
+        return closestFarm
+    end
     
-    return petData
+    return playerPosition
 end
 
--- Ultra-fast batch processing
-function FastPetSystem.batchProcessAllPets(onPetProcessed, onComplete)
-    local startTime = tick()
-    print("🚀 Starting ultra-fast pet detection...")
-    
-    -- Step 1: Detect all UUIDs (0.1s max)
-    local detectedUUIDs = FastPetSystem.detectUUIDsFromWorkspace()
-    local uuidList = {}
-    
-    for uuid, _ in pairs(detectedUUIDs) do
-        table.insert(uuidList, uuid)
+-- Function to format pet ID to UUID format
+function PetFunctions.formatPetIdToUUID(petId)
+    if string.match(petId, "^{%x+%-%x+%-%x+%-%x+%-%x+}$") then
+        return petId
     end
     
-    if #uuidList == 0 then
-        print("❌ No pets detected!")
-        if onComplete then onComplete({}) end
-        return
-    end
-    
-    print("📦 Detected " .. #uuidList .. " pets in " .. math.floor((tick() - startTime) * 1000) .. "ms")
-    
-    -- Step 2: Process all pets in parallel
-    local processedPets = {}
-    local completedCount = 0
-    local totalPets = #uuidList
-    
-    for _, uuid in pairs(uuidList) do
-        FastPetSystem.processPetUUID(uuid, function(petData)
-            table.insert(processedPets, petData)
-            completedCount = completedCount + 1
-            
-            -- Call individual pet callback
-            if onPetProcessed then
-                onPetProcessed(petData, completedCount, totalPets)
-            end
-            
-            -- Check if all completed
-            if completedCount >= totalPets then
-                local totalTime = tick() - startTime
-                print("✅ Processed all " .. totalPets .. " pets in " .. math.floor(totalTime * 1000) .. "ms")
-                
-                if onComplete then
-                    onComplete(processedPets)
-                end
-            end
-        end)
-    end
+    petId = string.gsub(petId, "[{}]", "")
+    return "{" .. petId .. "}"
 end
 
--- Fast dropdown registration
-function FastPetSystem.registerToDropdown(petData, dropdown)
-    if not dropdown or not petData then return end
-    
-    local shortId = string.sub(petData.id, 1, 8)
-    local displayName = (petData.name or "Pet") .. " (" .. shortId .. "...)"
-    
-    -- Fast dropdown update
-    if dropdown.AddOption then
-        dropdown:AddOption(displayName, petData)
-    elseif dropdown.Options then
-        table.insert(dropdown.Options, {
-            Name = displayName,
-            Value = petData
-        })
-        if dropdown.Refresh then
-            dropdown:Refresh()
-        end
-    end
-end
-
--- Main ultra-fast detection function with backpack preload
-function FastPetSystem.ultraFastDetection(dropdown, statusLabel)
-    local startTime = tick()
-    
-    if statusLabel then
-        statusLabel:Set("🔍 Pre-loading pet data...")
-    end
-    
-    -- Pre-load backpack data for instant name resolution
-    FastPetSystem.smartDetectionPreload()
-    
-    if statusLabel then
-        statusLabel:Set("🔍 Detecting pets...")
-    end
-    
-    FastPetSystem.batchProcessAllPets(
-        -- On each pet processed
-        function(petData, completed, total)
-            if dropdown then
-                FastPetSystem.registerToDropdown(petData, dropdown)
-            end
-            
-            if statusLabel then
-                statusLabel:Set(string.format("⚡ Processing: %d/%d pets (%s)", completed, total, petData.name or "Unknown"))
-            end
-        end,
-        
-        -- On all completed
-        function(allPets)
-            local totalTime = tick() - startTime
-            local timeMs = math.floor(totalTime * 1000)
-            
-            if statusLabel then
-                statusLabel:Set(string.format("✅ Found %d pets in %dms", #allPets, timeMs))
-            end
-            
-            print("🎉 Ultra-fast detection complete!")
-            print("⚡ Total time: " .. timeMs .. "ms")
-            print("🏆 Average per pet: " .. math.floor(timeMs / math.max(1, #allPets)) .. "ms")
-            
-            -- Show detected pet names
-            local petNames = {}
-            for _, pet in pairs(allPets) do
-                if pet.name and pet.name ~= "" then
-                    table.insert(petNames, pet.name)
-                end
-            end
-            
-            if #petNames > 0 then
-                print("🐾 Detected pets: " .. table.concat(petNames, ", "))
-            end
-        end
-    )
-end
-
--- Export functions
-FastPetSystem.detectUUIDs = FastPetSystem.detectUUIDsFromWorkspace
-FastPetSystem.processUUID = FastPetSystem.processPetUUID
-FastPetSystem.fastDetect = FastPetSystem.ultraFastDetection
-FastPetSystem.refresh = FastPetSystem.quickRefresh
-FastPetSystem.preload = FastPetSystem.smartDetectionPreload
-FastPetSystem.cleanName = FastPetSystem.cleanPetName
-
--- Quick refresh function
-function FastPetSystem.quickRefresh(dropdown, statusLabel)
-    -- Clear cache for fresh detection
-    petCache = {}
-    
-    -- Refresh UI first
+-- Function to set pet state
+function PetFunctions.setPetState(petId, state)
+    local formattedPetId = PetFunctions.formatPetIdToUUID(petId)
     pcall(function()
-        firesignal(RefreshActivePetsUI.OnClientEvent)
+        ActivePetService:FireServer("SetPetState", formattedPetId, state)
     end)
-    
-    -- Small delay then detect
-    task.wait(0.1)
-    FastPetSystem.ultraFastDetection(dropdown, statusLabel)
 end
 
--- Smart detection with backpack pre-loading
-function FastPetSystem.smartDetectionPreload()
-    print("🔍 Pre-loading pet data from backpack...")
+-- Function to run the auto middle loop
+function PetFunctions.runAutoMiddleLoop()
+    if not autoMiddleEnabled then return end
     
-    -- Pre-scan backpack for instant name mapping
-    local backpackPets = FastPetSystem.scanBackpackForPetNames()
-    local foundCount = 0
+    local pets = PetFunctions.getAllPets()
+    local farmCenterPoint = PetFunctions.getFarmCenterPoint()
     
-    for uuid, name in pairs(backpackPets) do
-        if FastPetSystem.isValidUUID(uuid) then
-            foundCount = foundCount + 1
+    if not farmCenterPoint then return end
+    
+    for _, pet in pairs(pets) do
+        -- Skip excluded pets
+        if not excludedPets[pet.id] then
+            if allPetsSelected or selectedPets[pet.id] then
+                local distance = (pet.mover.Position - farmCenterPoint).Magnitude
+                if distance > RADIUS then
+                    PetFunctions.setPetState(pet.id, "Idle")
+                end
+            end
         end
     end
-    
-    print("📦 Pre-loaded " .. foundCount .. " pet names from backpack")
-    return backpackPets
 end
 
-return FastPetSystem
+-- Function to start the heartbeat loop
+function PetFunctions.startLoop()
+    if autoMiddleConnection then
+        autoMiddleConnection:Disconnect()
+    end
+    
+    isLooping = true
+    autoMiddleConnection = RunService.Heartbeat:Connect(function()
+        if not isLooping then return end
+        PetFunctions.runAutoMiddleLoop()
+        task.wait(LOOP_DELAY)
+    end)
+end
+
+-- Function to stop the heartbeat loop
+function PetFunctions.stopLoop()
+    isLooping = false
+    if autoMiddleConnection then
+        autoMiddleConnection:Disconnect()
+        autoMiddleConnection = nil
+    end
+end
+
+-- Function to start initial loop
+function PetFunctions.startInitialLoop()
+    if not autoMiddleEnabled then return end
+    
+    PetFunctions.startLoop()
+    
+    if loopTimer then
+        task.cancel(loopTimer)
+    end
+    
+    loopTimer = task.spawn(function()
+        task.wait(INITIAL_LOOP_TIME)
+        if autoMiddleEnabled then
+            PetFunctions.stopLoop()
+        end
+    end)
+end
+
+-- Function to handle PetZoneAbility detection
+function PetFunctions.onPetZoneAbility()
+    if not autoMiddleEnabled then return end
+    
+    -- Update the last zone ability time
+    lastZoneAbilityTime = tick()
+    
+    if delayTimer then
+        task.cancel(delayTimer)
+    end
+    
+    delayTimer = task.spawn(function()
+        task.wait(ZONE_ABILITY_DELAY)
+        if autoMiddleEnabled then
+            PetFunctions.startLoop()
+            task.wait(ZONE_ABILITY_LOOP_TIME)
+            if autoMiddleEnabled then
+                PetFunctions.stopLoop()
+            end
+        end
+    end)
+end
+
+-- Function to setup PetZoneAbility listener
+function PetFunctions.setupZoneAbilityListener()
+    if zoneAbilityConnection then
+        zoneAbilityConnection:Disconnect()
+    end
+    zoneAbilityConnection = PetZoneAbility.OnClientEvent:Connect(PetFunctions.onPetZoneAbility)
+end
+
+-- Function to setup Notification listener
+function PetFunctions.setupNotificationListener()
+    if notificationConnection then
+        notificationConnection:Disconnect()
+    end
+    notificationConnection = Notification.OnClientEvent:Connect(PetFunctions.onNotificationSignal)
+end
+
+-- Function to cleanup all timers and connections
+function PetFunctions.cleanup()
+    PetFunctions.stopLoop()
+    
+    if zoneAbilityConnection then
+        zoneAbilityConnection:Disconnect()
+        zoneAbilityConnection = nil
+    end
+    
+    if notificationConnection then
+        notificationConnection:Disconnect()
+        notificationConnection = nil
+    end
+    
+    if loopTimer then
+        task.cancel(loopTimer)
+        loopTimer = nil
+    end
+    if delayTimer then
+        task.cancel(delayTimer)
+        delayTimer = nil
+    end
+    
+    -- Clean up ESP markers
+    for petId, esp in pairs(excludedPetESPs) do
+        if esp then
+            esp:Destroy()
+        end
+    end
+    excludedPetESPs = {}
+end
+
+-- Function to select all pets
+function PetFunctions.selectAllPets()
+    selectedPets = {}
+    allPetsSelected = true
+    local pets = PetFunctions.getAllPets()
+    for _, pet in pairs(pets) do
+        selectedPets[pet.id] = true
+    end
+end
+
+-- Function to update dropdown options
+function PetFunctions.updateDropdownOptions()
+    local pets = PetFunctions.getAllPets()
+    currentPetsList = {}
+    local dropdownOptions = {"None"}
+    
+    for i, pet in pairs(pets) do
+        local shortId = string.sub(tostring(pet.id), 1, 8)
+        local displayName = "Pet (" .. shortId .. "...)"
+        table.insert(dropdownOptions, displayName)
+        currentPetsList[displayName] = pet
+    end
+    
+    -- Update the dropdown options
+    if petDropdown and petDropdown.Refresh then
+        petDropdown:Refresh(dropdownOptions, true)
+    end
+end
+
+-- Function to refresh pets
+function PetFunctions.refreshPets()
+    selectedPets = {}
+    allPetsSelected = false
+    petsFolder = PetFunctions.findPetsFolder()
+    local pets = PetFunctions.getAllPets()
+    PetFunctions.updateDropdownOptions()
+    return pets
+end
+
+-- Function to update pet count
+function PetFunctions.updatePetCount()
+    local pets = PetFunctions.getAllPets()
+    local selectedCount = 0
+    local excludedCount = 0
+    
+    for petId, _ in pairs(selectedPets) do
+        selectedCount = selectedCount + 1
+    end
+    
+    for petId, _ in pairs(excludedPets) do
+        excludedCount = excludedCount + 1
+    end
+    
+    if allPetsSelected then
+        selectedCount = #pets
+    end
+    
+    if petCountLabel then
+        petCountLabel:Set("Pets Found: " .. #pets .. " | Selected: " .. selectedCount .. " | Excluded: " .. excludedCount)
+    end
+end
+
+-- Helper functions for external use
+function PetFunctions.isPetExcluded(petId)
+    return excludedPets[petId] == true
+end
+
+function PetFunctions.getExcludedPetCount()
+    local count = 0
+    for _ in pairs(excludedPets) do
+        count = count + 1
+    end
+    return count
+end
+
+function PetFunctions.getExcludedPetIds()
+    local ids = {}
+    for petId, _ in pairs(excludedPets) do
+        table.insert(ids, petId)
+    end
+    return ids
+end
+
+-- Getters and Setters
+function PetFunctions.setAutoMiddleEnabled(enabled)
+    autoMiddleEnabled = enabled
+    if enabled then
+        lastZoneAbilityTime = tick() -- Reset timer when enabling
+        PetFunctions.setupNotificationListener()
+    else
+        if notificationConnection then
+            notificationConnection:Disconnect()
+            notificationConnection = nil
+        end
+    end
+end
+
+function PetFunctions.getAutoMiddleEnabled()
+    return autoMiddleEnabled
+end
+
+function PetFunctions.setPetCountLabel(label)
+    petCountLabel = label
+end
+
+function PetFunctions.setPetDropdown(dropdown)
+    petDropdown = dropdown
+end
+
+function PetFunctions.getSelectedPets()
+    return selectedPets
+end
+
+function PetFunctions.getExcludedPets()
+    return excludedPets
+end
+
+function PetFunctions.getCurrentPetsList()
+    return currentPetsList
+end
+
+function PetFunctions.setExcludedPets(pets)
+    excludedPets = pets
+end
+
+-- Initialize the system with auto refresh
+task.spawn(function()
+    task.wait(1) -- Wait a moment for everything to load
+    PetFunctions.refreshPets()
+    PetFunctions.updatePetCount()
+end)
+
+PetFunctions.updateDropdownOptions()
+
+-- Make functions available globally if needed
+_G.updateDropdownOptions = PetFunctions.updateDropdownOptions
+_G.refreshPets = PetFunctions.refreshPets
+_G.isPetExcluded = PetFunctions.isPetExcluded
+_G.getExcludedPetCount = PetFunctions.getExcludedPetCount
+_G.getExcludedPetIds = PetFunctions.getExcludedPetIds
+
+return PetFunctions
