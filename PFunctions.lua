@@ -41,7 +41,7 @@ local petDropdown = nil
 local currentPetsList = {}
 local lastZoneAbilityTime = 0 -- Track last zone ability time
 
--- Cache for pet names to avoid repeated unequip/equip cycles
+-- Cache for pet names to avoid repeated lookups
 local petNameCache = {}
 local isRefreshingNames = false
 
@@ -72,48 +72,29 @@ function PetFunctions.findPetsFolder()
     return nil
 end
 
--- Function to refresh pet names by temporarily unequipping/equipping
-function PetFunctions.refreshPetNames(petIds)
-    if isRefreshingNames then return end
-    isRefreshingNames = true
+-- Function to get all pet names from backpack tools
+function PetFunctions.getAllPetNamesFromBackpack()
+    local player = Players.LocalPlayer
+    if not player or not player.Backpack then return {} end
     
-    local originalPositions = {}
+    local petNames = {}
     
-    -- Store original positions of pets
-    local pets = PetFunctions.getAllPets()
-    for _, pet in pairs(pets) do
-        if petIds and not table.find(petIds, pet.id) then continue end
-        originalPositions[pet.id] = pet.mover.CFrame
+    for _, tool in pairs(player.Backpack:GetChildren()) do
+        if tool:IsA("Tool") and (tool:FindFirstChild("PetToolLocal") or tool:FindFirstChild("PetToolServer")) then
+            local petName = tool.Name
+            if petName and petName ~= "" then
+                -- Extract just the pet type (remove weight and age)
+                -- Example: "Raccoon [1.49 KG] [Age 1]" -> "Raccoon"
+                local cleanName = string.match(petName, "^([^%[]+)")
+                if cleanName then
+                    cleanName = string.gsub(cleanName, "%s+$", "") -- Remove trailing spaces
+                    table.insert(petNames, cleanName)
+                end
+            end
+        end
     end
     
-    task.spawn(function()
-        -- Unequip all specified pets (or all if none specified)
-        for petId, cframe in pairs(originalPositions) do
-            local formattedId = PetFunctions.formatPetIdToUUID(petId)
-            pcall(function()
-                PetsService:FireServer("UnequipPet", formattedId)
-            end)
-        end
-        
-        -- Wait a short moment
-        task.wait(0.1)
-        
-        -- Re-equip pets with their original positions
-        for petId, cframe in pairs(originalPositions) do
-            local formattedId = PetFunctions.formatPetIdToUUID(petId)
-            pcall(function()
-                PetsService:FireServer("EquipPet", formattedId, cframe)
-            end)
-        end
-        
-        -- Wait for pets to be re-equipped
-        task.wait(0.2)
-        
-        -- Update the cache with new names
-        PetFunctions.updatePetNameCache()
-        
-        isRefreshingNames = false
-    end)
+    return petNames
 end
 
 -- Function to update pet name cache from backpack
@@ -155,45 +136,34 @@ function PetFunctions.updatePetNameCache()
     end
 end
 
--- Enhanced function to get clean pet name
-function PetFunctions.getPetNameFromCache(petId)
-    -- Check cache first
-    if petNameCache[tostring(petId)] then
-        return petNameCache[tostring(petId)]
-    end
-    
-    -- Fallback to backpack method
+-- Enhanced function to get clean pet name from backpack
+function PetFunctions.getPetNameFromBackpack(petIndex)
     local player = Players.LocalPlayer
-    if not player or not player.Backpack then return "Unknown Pet" end
+    if not player or not player.Backpack then return "Pet" end
     
+    local petTools = {}
+    
+    -- Collect all pet tools
     for _, tool in pairs(player.Backpack:GetChildren()) do
         if tool:IsA("Tool") and (tool:FindFirstChild("PetToolLocal") or tool:FindFirstChild("PetToolServer")) then
-            -- Try to match this tool with the pet ID
-            local petTool = tool:FindFirstChild("PetToolLocal") or tool:FindFirstChild("PetToolServer")
-            if petTool then
-                local toolPetId = tool:GetAttribute("PetId") or 
-                                 tool:GetAttribute("Id") or 
-                                 tool:GetAttribute("UUID") or
-                                 petTool:GetAttribute("PetId") or
-                                 petTool:GetAttribute("Id") or
-                                 petTool:GetAttribute("UUID")
-                
-                if toolPetId and tostring(toolPetId) == tostring(petId) then
-                    local petName = tool.Name
-                    if petName and petName ~= "" then
-                        local cleanName = string.match(petName, "^([^%[]+)")
-                        if cleanName then
-                            cleanName = string.gsub(cleanName, "%s+$", "")
-                            petNameCache[tostring(petId)] = cleanName -- Cache it
-                            return cleanName
-                        end
-                    end
-                end
+            table.insert(petTools, tool)
+        end
+    end
+    
+    -- Get the pet name by index (since pets are usually in order)
+    if petTools[petIndex] then
+        local petName = petTools[petIndex].Name
+        if petName and petName ~= "" then
+            -- Extract just the pet type (remove weight and age)
+            -- Example: "Raccoon [1.49 KG] [Age 1]" -> "Raccoon"
+            local cleanName = string.match(petName, "^([^%[]+)")
+            if cleanName then
+                return string.gsub(cleanName, "%s+$", "") -- Remove trailing spaces
             end
         end
     end
     
-    return "Unknown Pet"
+    return "Pet"
 end
 
 -- Function to get pet ID from PetMover
@@ -260,23 +230,26 @@ function PetFunctions.removeESPMarker(petId)
     end
 end
 
--- Function to get all pets with proper names
+-- Function to get all pets with proper names from backpack
 function PetFunctions.getAllPets()
     local pets = {}
+    local petIndex = 1 -- Track pet index for backpack matching
     
     local function processPetContainer(container)
         local petMover = container:FindFirstChild("PetMover")
         if petMover and petMover:IsA("BasePart") then
             local petId = PetFunctions.getPetIdFromPetMover(petMover)
             if petId then
-                local petName = PetFunctions.getPetNameFromCache(petId)
+                local petName = PetFunctions.getPetNameFromBackpack(petIndex)
                 table.insert(pets, {
                     id = petId,
                     name = petName,
                     model = container,
                     mover = petMover,
-                    position = petMover.Position
+                    position = petMover.Position,
+                    index = petIndex
                 })
+                petIndex = petIndex + 1
             end
         end
     end
@@ -286,14 +259,16 @@ function PetFunctions.getAllPets()
             if child:IsA("Part") and child.Name == "PetMover" then
                 local petId = PetFunctions.getPetIdFromPetMover(child)
                 if petId then
-                    local petName = PetFunctions.getPetNameFromCache(petId)
+                    local petName = PetFunctions.getPetNameFromBackpack(petIndex)
                     table.insert(pets, {
                         id = petId,
                         name = petName,
                         model = child.Parent,
                         mover = child,
-                        position = child.Position
+                        position = child.Position,
+                        index = petIndex
                     })
+                    petIndex = petIndex + 1
                 end
             elseif child:IsA("Model") or child:IsA("Folder") then
                 findStandalonePetMovers(child)
@@ -553,42 +528,13 @@ function PetFunctions.updateDropdownOptions()
     end
 end
 
--- Enhanced refresh pets function
+-- Simple refresh pets function
 function PetFunctions.refreshPets()
     selectedPets = {}
     allPetsSelected = false
     petsFolder = PetFunctions.findPetsFolder()
     
-    -- Update pet name cache first
-    PetFunctions.updatePetNameCache()
-    
-    -- If we have pets but names are still showing as "Unknown Pet" or all the same,
-    -- try refreshing names via unequip/equip
     local pets = PetFunctions.getAllPets()
-    local needsNameRefresh = false
-    local firstPetName = nil
-    
-    for _, pet in pairs(pets) do
-        if pet.name == "Unknown Pet" then
-            needsNameRefresh = true
-            break
-        end
-        if firstPetName == nil then
-            firstPetName = pet.name
-        elseif pet.name == firstPetName and firstPetName == "snail" then
-            -- All pets have the same name "snail", likely need refresh
-            needsNameRefresh = true
-            break
-        end
-    end
-    
-    if needsNameRefresh and #pets > 0 then
-        print("Refreshing pet names...")
-        PetFunctions.refreshPetNames()
-        task.wait(0.5) -- Wait for refresh to complete
-        pets = PetFunctions.getAllPets() -- Get pets again with updated names
-    end
-    
     PetFunctions.updateDropdownOptions()
     return pets
 end
@@ -637,16 +583,12 @@ function PetFunctions.getExcludedPetIds()
     return ids
 end
 
--- Function to manually refresh all pet names
-function PetFunctions.forceRefreshAllPetNames()
-    print("Force refreshing all pet names...")
-    petNameCache = {} -- Clear cache
-    PetFunctions.refreshPetNames() -- Refresh via unequip/equip
-    task.wait(0.5)
-    PetFunctions.updatePetNameCache() -- Update cache
-    PetFunctions.updateDropdownOptions() -- Update UI
-    PetFunctions.updatePetCount() -- Update counts
-    print("Pet name refresh complete!")
+-- Function to manually refresh dropdown with backpack names
+function PetFunctions.refreshDropdownFromBackpack()
+    print("Refreshing dropdown with backpack pet names...")
+    PetFunctions.updateDropdownOptions()
+    PetFunctions.updatePetCount()
+    print("Dropdown refresh complete!")
 end
 
 -- Getters and Setters
@@ -706,6 +648,6 @@ _G.refreshPets = PetFunctions.refreshPets
 _G.isPetExcluded = PetFunctions.isPetExcluded
 _G.getExcludedPetCount = PetFunctions.getExcludedPetCount
 _G.getExcludedPetIds = PetFunctions.getExcludedPetIds
-_G.forceRefreshAllPetNames = PetFunctions.forceRefreshAllPetNames -- New global function
+_G.refreshDropdownFromBackpack = PetFunctions.refreshDropdownFromBackpack -- New global function
 
 return PetFunctions
